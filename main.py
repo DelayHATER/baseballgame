@@ -89,6 +89,7 @@ body {
 .abs-cell.point { background:#fbbf24; box-shadow:0 0 7px #fbbf24; border-radius:50%; }
 .abs-cell.challenge { outline:1px solid #f87171; }
 #absCall { display:block; text-align:center; color:#fbbf24; min-height:14px; }
+#absPanel #challengeBtn { display:block !important; width:100%; margin-top:4px; padding:5px; font-size:10px; }
 .setting-row { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; }
 .setting-label { color:#cbd5e1; font-size:12px; font-weight:700; margin:0 3px; }
 .pitch-info { display:flex; align-items:center; justify-content:center; min-height:34px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#fbbf24; font-weight:800; font-size:13px; letter-spacing:.04em; }
@@ -136,7 +137,7 @@ body {
     </div>
 
     <div id="msg"></div>
-    <div id="absPanel"><b>ABS 존 · 최근 투구</b><div id="absGrid"></div><span id="absCall">아직 투구 기록 없음</span><button id="challengeBtn" class="stadium-choice" style="display:none;width:100%;margin-top:4px;padding:5px" disabled>⚖️ 챌린지 (2)</button></div>
+    <div id="absPanel"><b>ABS 존 · 최근 투구</b><div id="absGrid"></div><span id="absCall">아직 투구 기록 없음</span><button id="challengeBtn" class="stadium-choice" disabled>⚖️ ABS 챌린지 대기 (2)</button></div>
 
     <section id="gameHud">
       <div class="pitch-info" id="pitchInfo">투구 후 구종과 구속이 표시됩니다</div>
@@ -280,9 +281,13 @@ const PITCHERS = [
   { id: 4, title: '고퀄스', name: '고영표', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, endurance: 1.18, pitches: [0,1,4,6], desc: '사이드암 · 구속 B · 변화 S · 제구 S · 체력 S' },
   { id: 5, title: 'KOREAN SASAKI', name: '문동주', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, endurance: 0.82, pitches: [0,1,2,3], desc: '오버핸드 · 구속 S · 변화 B · 제구 C · 체력 C' },
   { id: 6, title: '17MVP', name: '양현종', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, endurance: 1.16, pitches: [0,2,3,4,5], desc: '쓰리쿼터 · 구속 B · 변화 A · 제구 A · 체력 S' },
-  { id: 7, title: '궁내체고', name: '정대현', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, endurance: 1.1, pitches: [1,4,5,6], desc: '잠수함 · 구속 B · 변화 S · 제구 B · 체력 A' }
+  { id: 7, title: '궁내체고', name: '정대현', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, endurance: 1.1, pitches: [1,4,5,6], desc: '잠수함 · 구속 B · 변화 S · 제구 B · 체력 A' },
+  { id: 8, title: '무등산', name: '선동열', form: 'over', formName: '오버핸드', releaseX: 0.2, releaseY: 2.0, speed: 1.28, break: 1.32, ctrl: 0.027, endurance: 1.12, pitches: [0,2,3,4,5], desc: '강한 오버핸드 · 구속 S · 변화 A · 제구 S · 체력 A' },
+  { id: 9, title: 'BupKyu', name: '김병현', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 0.86, speed: 1.12, break: 1.62, ctrl: 0.045, endurance: 0.98, pitches: [0,1,4,5,6], desc: '낮은 릴리스 · 구속 A · 변화 S · 제구 B · 체력 B' },
+  { id: 10, title: '한만두', name: '박찬호', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.3, releaseY: 1.82, speed: 1.22, break: 1.12, ctrl: 0.034, endurance: 1.06, pitches: [0,1,2,3,4], desc: '힘 있는 쓰리쿼터 · 구속 S · 변화 A · 제구 A · 체력 A' }
 ];
 let currentPitcherIdx = 0;
+let usedPitcherIds = new Set();
 let pitcherStamina = 100;
 let pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
 function pitcherFatigueFactor() { return 0.72 + 0.28 * C(pitcherStamina / 100, 0, 1); }
@@ -645,7 +650,7 @@ function zoneCall(tx, ty) {
   // 이전 기본 존(±0.9)보다는 조금 넓고, 직전 존(±1.0)보다는 살짝 좁게 잡습니다.
   const actual = Math.abs(tx) <= 0.96 && Math.abs(ty) <= 0.96;
   const edge = Math.min(Math.abs(Math.abs(tx) - 0.96), Math.abs(Math.abs(ty) - 0.96));
-  const challengeable = edge <= 0.12;
+  const challengeable = edge <= 0.20;
   const wrong = challengeable && Math.random() < 0.04;
   return { actual, called: wrong ? !actual : actual, challengeable, wrong };
 }
@@ -662,8 +667,9 @@ function initABSGrid() {
 
 function updateABS(tx, ty, callText, wrong = false) {
   initABSGrid();
-  const col = C(Math.floor((tx + 1.4) / 2.8 * 7), 0, 6);
-  const row = 6 - C(Math.floor((ty + 1.4) / 2.8 * 7), 0, 6);
+  // ABS 그리드 중앙 5칸의 경계를 ±0.96 판정 존과 일치시킵니다.
+  const col = C(Math.floor((tx + 1.344) / 2.688 * 7), 0, 6);
+  const row = 6 - C(Math.floor((ty + 1.344) / 2.688 * 7), 0, 6);
   const cell = row * 7 + col;
   document.querySelectorAll('.abs-cell').forEach((el, i) => {
     el.classList.toggle('point', i === cell);
@@ -682,6 +688,12 @@ function challengeABS() {
   if (!pendingABSCall || challengeCount <= 0 || performance.now() > pendingABSCall.expires) return;
   const call = pendingABSCall;
   pendingABSCall = null; challengeCount--;
+  if (call.called === call.actual) {
+    updateABS(P.tx, P.ty, `챌린지 실패 · 판정 유지 (${call.actual === 'strike' ? '스트라이크' : '볼'})`, false);
+    flash('챌린지 실패', `원심 판정 유지 · 남은 횟수 ${challengeCount}`);
+    board();
+    return;
+  }
   if (call.called === 'strike') { S.strikes = Math.max(0, S.strikes - 1); S.balls++; }
   else { S.balls = Math.max(0, S.balls - 1); S.strikes++; }
   updateABS(P.tx, P.ty, `챌린지 성공 · ${call.actual === 'strike' ? '스트라이크' : '볼'}`, false);
@@ -901,9 +913,11 @@ function board() {
   const canSprint = (S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace)) || (S.mode === 'pitch' && !!pendingFieldingPlay);
   $('mobileSteal').disabled = !canSprint;
   const challengeButton = $('challengeBtn');
-  challengeButton.style.display = pendingABSCall ? 'block' : 'none';
+  challengeButton.style.display = 'block';
   challengeButton.disabled = !pendingABSCall || challengeCount <= 0;
-  challengeButton.textContent = `⚖️ ABS 판정 번복 (${challengeCount})`;
+  challengeButton.textContent = pendingABSCall
+    ? `⚖️ 챌린지 가능 · 번복 (${challengeCount})`
+    : `⚖️ ABS 챌린지 대기 (${challengeCount})`;
   refreshPitchButtons();
   updateStatsUI();
   updatePitcherUI();
@@ -1287,6 +1301,7 @@ function releasePitchCharge() {
 
 function throwPitch(releaseQuality = 0, timedRelease = false) {
   const pData = PITCHERS[currentPitcherIdx];
+  if (S.mode === 'pitch') usedPitcherIds.add(pData.id);
   const T = TYPES[S.pt];
   const quality = C(releaseQuality, 0, 1);
   const fatigue = pitcherFatigueFactor();
@@ -1361,7 +1376,7 @@ function resolve(off) {
     if (!P.actualInZone && Math.abs(P.tx) > 0.96 && Math.abs(P.ty) < 0.85 && Math.random() < 0.1) r = 'hbp';
     updateABS(P.tx, P.ty, `${r === 'strike' ? '스트라이크' : r === 'hbp' ? '몸에 맞음' : '볼'} 판정`, wrongCall);
     const safeToChallenge = r === 'strike' ? S.strikes < 2 : r === 'ball' ? S.balls < 3 : false;
-    pendingABSCall = P.challengeable && wrongCall && safeToChallenge
+    pendingABSCall = P.challengeable && safeToChallenge
       ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: performance.now() + 4500 }
       : null;
     if (pendingABSCall) setTimeout(() => { if (pendingABSCall && performance.now() >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 4550);
@@ -1577,6 +1592,7 @@ function start(m) {
   opponentBatterIndex = 0; batterPAMode = null;
   pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
   pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
+  usedPitcherIds = new Set();
   challengeCount = 2; pendingABSCall = null;
   clearRun(); bt.visible = true; defensiveThrow = null; $('types').hidden = S.mode !== 'pitch';
   board(); P = null; hit = null; sw = null; resetField();
@@ -1828,9 +1844,11 @@ function openPitcherModal() {
   list.innerHTML = '';
   
   PITCHERS.forEach((p, idx) => {
+    const alreadyUsed = usedPitcherIds.has(p.id);
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `w-full text-left p-3 rounded-lg border transition-all ${
+    btn.disabled = alreadyUsed;
+    btn.className = `w-full text-left p-3 rounded-lg border transition-all disabled:opacity-45 disabled:cursor-not-allowed ${
       idx === currentPitcherIdx 
         ? 'border-amber-400 bg-amber-400/20 text-white font-bold' 
         : 'border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700'
@@ -1838,12 +1856,13 @@ function openPitcherModal() {
     btn.innerHTML = `
       <div class="flex justify-between items-center mb-1">
         <span class="font-bold ${idx === currentPitcherIdx ? 'text-amber-400' : 'text-white'}">${p.title} ${p.name}</span>
-        <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-amber-300 border border-slate-700">${p.formName} · ${Math.round(p.speed*140)} km/h</span>
+        <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-amber-300 border border-slate-700">${idx === currentPitcherIdx ? '현재 등판 · ' : alreadyUsed ? '등판 완료 · ' : ''}${p.formName} · ${Math.round(p.speed*140)} km/h</span>
       </div>
       <div class="text-xs text-slate-400">${p.desc}</div>
       <div class="text-[10px] text-emerald-300 mt-1">사용 구종: ${p.pitches.map(i => TYPES[i].name).join(' · ')}</div>
     `;
     btn.onclick = () => { 
+      if (usedPitcherIds.has(p.id)) return;
       savePitcherStamina();
       currentPitcherIdx = idx;
       pitcherStamina = pitcherStaminaById[idx] ?? 100;
@@ -1863,6 +1882,12 @@ function openPitcherModal() {
 stage.addEventListener('pointerdown', e => {
   // 시작 설정 오버레이 안의 입력·버튼 클릭은 경기 캔버스 조작으로 전달하지 않습니다.
   if (e.target.closest('#ov, #gameHud, #absPanel, #timingWrap, button, input, select, textarea, label')) return;
+  const touchInput = e.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches;
+  if (touchInput && S.mode === 'pitch') {
+    e.preventDefault();
+    if (S.phase === 'aim') aimAt(e);
+    return;
+  }
   e.preventDefault();
   if (attemptHighlightCatch()) return;
   if (S.mode === 'pitch' && S.phase === 'aim') {
@@ -1942,4 +1967,5 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
 
