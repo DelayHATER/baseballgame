@@ -91,6 +91,12 @@ body {
 .setting-row { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; }
 .setting-label { color:#cbd5e1; font-size:12px; font-weight:700; margin:0 3px; }
 .pitch-info { display:flex; align-items:center; justify-content:center; min-height:34px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#fbbf24; font-weight:800; font-size:13px; letter-spacing:.04em; }
+.top-summaries { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.summary-card { min-width:0; border:1px solid #334155; border-radius:9px; background:#0f172a; padding:8px 10px; color:#e2e8f0; font-size:11px; }
+.summary-card b { display:block; font-size:12px; margin-bottom:3px; }
+.lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:120px; overflow:auto; padding:4px; }
+.lineup-grid label { color:#cbd5e1; font-size:10px; text-align:left; }
+.lineup-grid input { display:block; width:100%; min-width:0; margin-top:2px; border:1px solid #475569; border-radius:5px; background:#0f172a; color:#fff; padding:5px; font-size:11px; }
 </style>
 </head>
 <body>
@@ -125,6 +131,11 @@ body {
       <button id="changePitcherBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded text-white border border-slate-500">교체</button>
     </div>
   </header>
+
+  <section class="top-summaries">
+    <div class="summary-card"><b id="batterSideLabel" class="text-amber-400">내 타자</b><div id="batterSummary">1번 타자 · AVG — · OPS —</div></div>
+    <div class="summary-card"><b id="pitcherSideLabel" class="text-sky-400">상대 투수</b><div id="pitcherSummaryTop">상대 선발 · ERA — · K 0 · WHIP —</div></div>
+  </section>
 
   <div id="pitchInfo" class="pitch-info">투구 후 구종과 구속이 표시됩니다</div>
 
@@ -175,6 +186,17 @@ body {
         <span class="setting-label">타석 방향</span>
         <button class="stadium-choice on" data-batside="R">우타</button>
         <button class="stadium-choice" data-batside="L">좌타</button>
+      </div>
+      <div class="lineup-grid" id="lineupInputs">
+        <label>1번 타자<input id="lineupName0" maxlength="12" value="1번 타자"></label>
+        <label>2번 타자<input id="lineupName1" maxlength="12" value="2번 타자"></label>
+        <label>3번 타자<input id="lineupName2" maxlength="12" value="3번 타자"></label>
+        <label>4번 타자<input id="lineupName3" maxlength="12" value="4번 타자"></label>
+        <label>5번 타자<input id="lineupName4" maxlength="12" value="5번 타자"></label>
+        <label>6번 타자<input id="lineupName5" maxlength="12" value="6번 타자"></label>
+        <label>7번 타자<input id="lineupName6" maxlength="12" value="7번 타자"></label>
+        <label>8번 타자<input id="lineupName7" maxlength="12" value="8번 타자"></label>
+        <label>9번 타자<input id="lineupName8" maxlength="12" value="9번 타자"></label>
       </div>
       <div class="flex gap-3 mt-2">
         <button id="go" class="btn-action px-6 py-3 text-base">공격(타자)부터 시작</button>
@@ -256,7 +278,14 @@ const DIFFICULTIES = { easy: { label: '쉬움', pitchSpeed: 0.86, aiContact: 0.6
 const emptyBatterStats = () => ({ pa: 0, ab: 0, hits: 0, walks: 0, hbp: 0, totalBases: 0, runs: 0, rbi: 0 });
 const emptyPitcherStats = () => ({ outs: 0, strikeouts: 0, walks: 0, hits: 0, hbp: 0, earnedRuns: 0 });
 let batterStats = emptyBatterStats();
+let lineup = Array.from({ length: 9 }, (_, i) => ({ name: `${i + 1}번 타자`, stats: emptyBatterStats() }));
+let battingOrderIndex = 0;
+let batterPAComplete = false;
 let pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
+let opponentPitcherStats = emptyPitcherStats();
+let opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, stats: emptyBatterStats() }));
+let opponentBatterIndex = 0;
+let batterPAMode = null;
 let challengeCount = 2;
 let pendingABSCall = null;
 
@@ -611,22 +640,45 @@ function challengeABS() {
 function currentPitcherStats() { return pitcherStatsById[currentPitcherIdx]; }
 function battingAverage() { return batterStats.ab ? batterStats.hits / batterStats.ab : 0; }
 function updateStatsUI() {
-  const avg = battingAverage();
-  const obpDen = batterStats.ab + batterStats.walks + batterStats.hbp;
-  const obp = obpDen ? (batterStats.hits + batterStats.walks + batterStats.hbp) / obpDen : 0;
-  const slg = batterStats.ab ? batterStats.totalBases / batterStats.ab : 0;
-  const ps = currentPitcherStats(), ip = ps.outs / 3;
+  const ownBatter = S.mode === 'bat';
+  const bs = ownBatter ? batterStats : opponentLineup[opponentBatterIndex].stats;
+  const ps = ownBatter ? opponentPitcherStats : currentPitcherStats();
+  const avg = bs.ab ? bs.hits / bs.ab : 0;
+  const obpDen = bs.ab + bs.walks + bs.hbp;
+  const obp = obpDen ? (bs.hits + bs.walks + bs.hbp) / obpDen : 0;
+  const slg = bs.ab ? bs.totalBases / bs.ab : 0;
+  const ip = ps.outs / 3;
   const era = ip ? (ps.earnedRuns * 9 / ip).toFixed(2) : '—';
   const whip = ip ? ((ps.walks + ps.hits) / ip).toFixed(2) : '—';
   $('batterStats').innerHTML = `AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${batterStats.runs} · 타점 ${batterStats.rbi} · 안타 ${batterStats.hits} · BB ${batterStats.walks} · HBP ${batterStats.hbp}`;
   $('pitcherGameStats').textContent = `ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · HBP ${ps.hbp}`;
+  const batterTop = $('batterSummary');
+  $('batterSideLabel').textContent = ownBatter ? '내 타자 기록' : '상대 타자 기록';
+  $('pitcherSideLabel').textContent = ownBatter ? '상대 투수 기록' : '내 투수 기록';
+  if (batterTop) batterTop.innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번 ${ownBatter ? lineup[battingOrderIndex].name : opponentLineup[opponentBatterIndex].name}</strong><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${bs.runs} · 타점 ${bs.rbi} · 안타 ${bs.hits}`;
+  const pitcherTop = $('pitcherSummaryTop');
+  if (pitcherTop) pitcherTop.innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · HBP ${ps.hbp}`;
 }
 
 function recordBatterHit(bases) {
-  if (S.mode !== 'bat') return;
-  batterStats.pa++; batterStats.ab++; batterStats.hits++; batterStats.totalBases += bases;
+  const stats = S.mode === 'bat' ? batterStats : opponentLineup[opponentBatterIndex].stats;
+  stats.pa++; stats.ab++; stats.hits++; stats.totalBases += bases;
+  if (S.mode === 'bat') opponentPitcherStats.hits++;
+  batterPAMode = S.mode; batterPAComplete = true;
 }
-function recordBatterOut() { if (S.mode === 'bat') { batterStats.pa++; batterStats.ab++; } }
+function recordBatterOut() {
+  const stats = S.mode === 'bat' ? batterStats : opponentLineup[opponentBatterIndex].stats;
+  stats.pa++; stats.ab++;
+  batterPAMode = S.mode; batterPAComplete = true;
+}
+function finishBatterPA() {
+  if (!batterPAComplete) return;
+  if (batterPAMode === 'bat') {
+    battingOrderIndex = (battingOrderIndex + 1) % lineup.length;
+    batterStats = lineup[battingOrderIndex].stats;
+  } else if (batterPAMode === 'pitch') opponentBatterIndex = (opponentBatterIndex + 1) % opponentLineup.length;
+  batterPAComplete = false; batterPAMode = null;
+}
 
 function sim(p0, v0, dur) {
   const a = [], p = p0.clone(), v = v0.clone();
@@ -688,7 +740,7 @@ const dots = (n, m) => '●'.repeat(n) + '○'.repeat(m - n);
 function addScore(amount) {
   if (S.mode === 'bat') {
     S.sc[0] += amount;
-    batterStats.runs += amount; batterStats.rbi += amount;
+    batterStats.rbi += amount; opponentPitcherStats.earnedRuns += amount;
   } else {
     S.sc[1] += amount;
     if (S.mode === 'pitch') currentPitcherStats().earnedRuns += amount;
@@ -731,9 +783,10 @@ function overlay(t, p, b) {
 
 function newRunner(t0, sp) {
   const q = pool.find(x => !x.on) || pool[0];
-  Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp });
+  Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp, batterIndex: S.mode === 'bat' ? battingOrderIndex : null });
   q.g.visible = true; q.g.position.copy(BP[0]); return q;
 }
+function recordRunnerScore(r) { if (S.mode === 'bat' && Number.isInteger(r?.batterIndex)) lineup[r.batterIndex].stats.runs++; }
 function setOcc(no) { occ = no; S.bases = [no[1] ? 1 : 0, no[2] ? 1 : 0, no[3] ? 1 : 0]; }
 function clearRun() { batterRace = null; pool.forEach(q => { q.on = false; q.g.visible = false; }); setOcc([null, null, null, null]); }
 
@@ -742,10 +795,10 @@ function advance(n, ex, t0) {
   for (let i = 3; i >= 1; i--) {
     const r = occ[i]; if (!r) continue;
     const t = Math.min(4, i + n + ex); r.to = t; r.t0 = t0; r.sp = sp;
-    if (t >= 4) addScore(1); else no[t] = r;
+    if (t >= 4) { recordRunnerScore(r); addScore(1); } else no[t] = r;
   }
   const b = newRunner(t0, sp); b.to = Math.min(n, 4);
-  if (n >= 4) addScore(1); else no[n] = b;
+  if (n >= 4) { recordRunnerScore(b); addScore(1); } else no[n] = b;
   setOcc(no); S.balls = S.strikes = 0;
   if (S.mode === 'bat') S.hits++;
   else if (S.mode === 'pitch') currentPitcherStats().hits++;
@@ -754,7 +807,7 @@ function advance(n, ex, t0) {
 function walk(t0) {
   const r = occ, no = [null, null, null, null], mv = (x, to) => { x.to = to; x.t0 = t0; x.sp = 16; };
   if (r[1]) {
-    if (r[2]) { if (r[3]) { mv(r[3], 4); addScore(1); } mv(r[2], 3); no[3] = r[2]; } else no[3] = r[3];
+    if (r[2]) { if (r[3]) { mv(r[3], 4); recordRunnerScore(r[3]); addScore(1); } mv(r[2], 3); no[3] = r[2]; } else no[3] = r[3];
     mv(r[1], 2); no[2] = r[1];
   } else { no[2] = r[2]; no[3] = r[3]; }
   const b = newRunner(t0, 16); b.to = 1; no[1] = b; setOcc(no); S.balls = S.strikes = 0;
@@ -767,7 +820,7 @@ function changeSide() {
   $('types').hidden = S.mode !== 'pitch' || S.h >= 2 * maxInnings;
 }
 
-function addOut(n) { S.outs += n; S.balls = S.strikes = 0; if (S.mode === 'pitch') currentPitcherStats().outs += n; if (S.outs >= 3) changeSide(); }
+function addOut(n) { S.outs += n; S.balls = S.strikes = 0; if (S.mode === 'pitch') currentPitcherStats().outs += n; else if (S.mode === 'bat') opponentPitcherStats.outs += n; if (S.outs >= 3) changeSide(); }
 
 function beginBatterRace(t0) {
   const runner = newRunner(t0, 9.5);
@@ -815,6 +868,7 @@ function settleBatterRace(now) {
     snd(210, 0.2, 'sawtooth', 0.2, 90);
     addOut(1);
   }
+  finishBatterPA();
   S.phase = 'result';
   board();
 }
@@ -1029,7 +1083,7 @@ function resolve(off) {
   }
 
   if (SPD[r]) {
-    if (r !== 'foul') bt.visible = false;
+    if (r !== 'foul') setTimeout(() => { bt.visible = false; }, 560);
     const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r], s = vh * R(0.9, 1.1);
     const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', chase: null };
@@ -1084,9 +1138,10 @@ function resolve(off) {
   else if (r === 'flyout') { recordBatterOut(); addOut(1); }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
   else if (r === 'strike' || r === 'whiff') { S.strikes++; if (S.strikes >= 3) { label = '삼진 아웃'; recordBatterOut(); if (S.mode === 'pitch') currentPitcherStats().strikeouts++; addOut(1); } }
-  else if (r === 'ball') { S.balls++; if (S.balls >= 4) { label = '볼넷'; if (S.mode === 'bat') { batterStats.pa++; batterStats.walks++; } else if (S.mode === 'pitch') currentPitcherStats().walks++; walk(tt); } }
-  else if (r === 'hbp') { label = '몸에 맞는 공'; if (S.mode === 'bat') { batterStats.pa++; batterStats.hbp++; } else if (S.mode === 'pitch') currentPitcherStats().hbp++; walk(tt); }
+  else if (r === 'ball') { S.balls++; if (S.balls >= 4) { label = '볼넷'; if (S.mode === 'bat') { batterStats.pa++; batterStats.walks++; opponentPitcherStats.walks++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().walks++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.walks++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); } }
+  else if (r === 'hbp') { label = '몸에 맞는 공'; if (S.mode === 'bat') { batterStats.pa++; batterStats.hbp++; opponentPitcherStats.hbp++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().hbp++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.hbp++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); }
 
+  if (!batterRace) finishBatterPA();
   flash(label, parts.join(', ')); board();
   const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
@@ -1114,7 +1169,15 @@ function setBatterSide(side) {
 function start(m) {
   clearTimeout(timer); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
-  batterStats = emptyBatterStats();
+  lineup = Array.from({ length: 9 }, (_, i) => {
+    const entered = $(`lineupName${i}`)?.value?.trim();
+    const name = entered && entered !== `${i + 1}번 타자` ? entered : `${i + 1}번 타자`;
+    return { name, stats: emptyBatterStats() };
+  });
+  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false;
+  opponentPitcherStats = emptyPitcherStats();
+  opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, stats: emptyBatterStats() }));
+  opponentBatterIndex = 0; batterPAMode = null;
   pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
   challengeCount = 2; pendingABSCall = null;
   clearRun(); bt.visible = true; defensiveThrow = null; $('types').hidden = S.mode !== 'pitch';
@@ -1392,7 +1455,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
 
 
