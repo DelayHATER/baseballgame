@@ -2,7 +2,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="타이밍 야구 3D Pro", page_icon="⚾", layout="wide")
+st.set_page_config(page_title="BaseBall 3D Pro", page_icon="⚾", layout="wide")
 st.markdown("""
 <style>
   [data-testid="stHeader"], [data-testid="stToolbar"] {visibility:hidden; height:0;}
@@ -222,12 +222,13 @@ body {
     <button id="mobileSteal" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold rounded-lg py-3 text-sm flex items-center justify-center gap-1 shadow-lg disabled:opacity-40" disabled>
       ⚡ 도루 연타!
     </button>
+    <button id="buntBtn" class="col-span-3 stadium-choice py-2">번트 대기</button>
   </div>
 
   <!-- 조작 안내 -->
   <p class="text-xs text-slate-400 text-center mt-1">
-    📱 모바일: 버튼 터치로 스윙 / 투구 / 도루. 투구 전 대기시간 동안 도루 버튼 연타 시 주자 속도 증가!<br>
-    💻 PC: [스페이스바] 스윙/투구, [S]키 도루·주루 연타, [1~7] 구종 선택, [방향키] 코스 이동.
+    📱 모바일: 번트 대기 버튼으로 번트를 준비하고, 도루·주루·희생플라이 때 연타 버튼을 누르세요.<br>
+    💻 PC: [스페이스바] 스윙/투구, [B] 번트 준비, [S] 도루·주루 연타, [1~7] 구종 선택, [방향키] 코스 이동.
   </p>
   <section id="statsPanel" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
     <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-amber-400">내 타자 전체 기록</b><div id="batterStats" class="text-slate-200 mt-1">AVG — · OBP — · SLG — · OPS —<br>득점 0 · 타점 0</div></div>
@@ -305,16 +306,13 @@ let stealSpeedBonus = 0;
 let activeStealRunner = null;
 let batterRace = null;
 let pendingFieldingPlay = null;
+let buntMode = false;
 
 /* ---------- Three.js 3D 그래픽 설정 ---------- */
 const stage = $('stage');
 const ren = new THREE.WebGLRenderer({ antialias: true });
 ren.setPixelRatio(Math.min(devicePixelRatio, 2));
-ren.outputEncoding = THREE.sRGBEncoding;
-ren.toneMapping = THREE.ACESFilmicToneMapping;
-ren.toneMappingExposure = 1.12;
 ren.shadowMap.enabled = true;
-ren.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.prepend(ren.domElement);
 
 const scene = new THREE.Scene();
@@ -343,7 +341,7 @@ const sun = new THREE.DirectionalLight(0xfff0d0, 1.2);
 sun.position.set(14, 30, 16);
 sun.target.position.set(0, 0, -8);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 5, far: 80 });
 scene.add(sun, sun.target);
 
@@ -374,10 +372,7 @@ function flat(geo, m, x, y, z, rz) {
 
 const grass = tex(256, 256, (g, w, h) => {
   g.fillStyle = '#2b6e45'; g.fillRect(0, 0, w, h);
-  for (let y = 0; y < h; y += 32) {
-    g.fillStyle = y % 64 === 0 ? 'rgba(105,175,112,0.16)' : 'rgba(4,30,18,0.12)';
-    g.fillRect(0, y, w, 32);
-  }
+  g.fillStyle = '#307a4c'; g.fillRect(0, 0, w, h / 2);
   for (let i = 0; i < 2000; i++) {
     g.fillStyle = 'rgba(0,0,0,' + R(0.02, 0.07) + ')';
     g.fillRect(R(0, w), R(0, h), 2, 2);
@@ -430,15 +425,11 @@ const boardFace = mk(new THREE.BoxGeometry(23, 5.4, 0.12), new THREE.MeshBasicMa
 const scoreTexture = tex(512, 128, (g, w, h) => { g.fillStyle = '#0f766e'; g.fillRect(0, 0, w, h); });
 boardFace.material.map = scoreTexture; boardFace.material.color.setHex(0xffffff); boardFace.material.needsUpdate = true;
 const stadiumLights = [];
-const fieldWashLights = [];
 [-1, 1].forEach(side => [-1, 1].forEach(depth => {
   const tower = new THREE.Group(); tower.position.set(side * 112, 0, depth * 72); scene.add(tower);
   mk(new THREE.CylinderGeometry(0.35, 0.65, 27, 8), mat(0x64748b), 0, 13.5, 0, tower, false);
   const lamps = mk(new THREE.BoxGeometry(7, 2, 1), new THREE.MeshBasicMaterial({ color: 0xfff7d6 }), 0, 27.2, 0, tower, false);
   stadiumLights.push(lamps);
-  const wash = new THREE.PointLight(0xffe6b0, 1.15, 118, 1.65);
-  wash.position.set(side * 49, 27, depth * 35);
-  scene.add(wash); fieldWashLights.push(wash);
 }));
 const DOME_RADIUS = 112, DOME_Y = -42, DOME_Z = -25;
 const dome = new THREE.Mesh(new THREE.SphereGeometry(DOME_RADIUS, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x9bd6ef, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
@@ -476,7 +467,6 @@ function applyStadium(index) {
   dome.visible = stadium.dome;
   domeRibs.visible = stadium.dome;
   stadiumLights.forEach(light => light.material.color.setHex(index === 1 ? 0xdbeafe : 0xfff7d6));
-  fieldWashLights.forEach(light => { light.visible = index === 0 || index === 1; });
   document.querySelectorAll('#stadiumChoices .stadium-choice').forEach((button, i) => button.classList.toggle('on', i === index));
   drawScoreboard();
 }
@@ -826,7 +816,10 @@ function addScore(amount) {
 
 function board() {
   $('mobileAct').textContent = S.mode === 'pitch' ? '투구!' : S.phase === 'aim' ? '타격 준비' : S.phase === 'running' ? '주루 중…' : '스윙!';
-  $('mobileSteal').textContent = S.phase === 'running' ? '🏃 연타로 1루 질주!' : '⚡ 도루 연타!';
+  $('mobileSteal').textContent = S.phase === 'running' && batterRace?.kind === 'sacfly' ? '🏠 연타로 홈 승부!' : S.phase === 'running' ? '🏃 연타로 1루 질주!' : '⚡ 도루 연타!';
+  $('buntBtn').textContent = buntMode ? '번트 대기 중 · 취소' : '번트 대기';
+  $('buntBtn').classList.toggle('on', buntMode);
+  $('buntBtn').disabled = S.mode !== 'bat' || S.phase === 'running';
   $('inn').textContent = (Math.min(S.h >> 1, maxInnings - 1) + 1) + '회 ' + (S.h % 2 ? '말' : '초') + (S.mode === 'bat' ? ' 공격' : ' 수비');
   $('score').textContent = S.sc[0] + ' : ' + S.sc[1];
   $('b').textContent = dots(S.balls, 3);
@@ -885,6 +878,18 @@ function advance(n, ex, t0) {
   else if (S.mode === 'pitch') currentPitcherStats().hits++;
 }
 
+function advanceRunnersOnBunt(t0) {
+  const no = [null, null, null, null];
+  for (let base = 3; base >= 1; base--) {
+    const runner = occ[base];
+    if (!runner) continue;
+    runner.to = base + 1; runner.t0 = t0; runner.sp = 13;
+    if (base === 3) { recordRunnerScore(runner); addScore(1); }
+    else no[base + 1] = runner;
+  }
+  setOcc(no);
+}
+
 function walk(t0) {
   const r = occ, no = [null, null, null, null], mv = (x, to) => { x.to = to; x.t0 = t0; x.sp = 16; };
   if (r[1]) {
@@ -895,7 +900,7 @@ function walk(t0) {
 }
 
 function changeSide() {
-  S.outs = 0; clearRun(); S.h++; S.mode = S.mode === 'bat' ? 'pitch' : 'bat';
+  S.outs = 0; clearRun(); buntMode = false; S.h++; S.mode = S.mode === 'bat' ? 'pitch' : 'bat';
   const hm = S.fm === 'bat' ? 1 : 0;
   if (S.h === 2 * maxInnings - 1 && S.sc[hm] > S.sc[1 - hm]) S.h = 2 * maxInnings;
   $('types').hidden = S.mode !== 'pitch' || S.h >= 2 * maxInnings;
@@ -921,6 +926,24 @@ function beginBatterRace(t0) {
   S.phase = 'running';
 }
 
+function beginSacFlyRace(t0) {
+  const runner = occ[3];
+  if (!runner) return false;
+  occ[3] = null; setOcc(occ);
+  const play = hit?.plan;
+  const catchAt = t0 + (play ? play.i / 60 / 1.7 * 1000 : 450);
+  const from = (play && hit.path[play.i] ? hit.path[play.i] : runner.g.position).clone();
+  from.y = 1.35;
+  const to = BP[0].clone(); to.y = 1.25;
+  const throwDuration = 1550;
+  defensiveThrow = { from, to, start: catchAt, duration: throwDuration, thrower: 'fielder', targetBase: 0 };
+  runner.to = 4; runner.t0 = catchAt; runner.sp = 10;
+  batterRace = { kind: 'sacfly', runner, callAt: catchAt + throwDuration, hitterIndex: battingOrderIndex };
+  S.phase = 'running';
+  flash('희생플라이 승부!', '3루 주자가 홈으로 뜁니다. 송구 전에 연타하세요!');
+  return true;
+}
+
 function sprintBatter() {
   if (S.phase !== 'running' || !batterRace) return;
   const runner = batterRace.runner;
@@ -931,6 +954,20 @@ function sprintBatter() {
 function settleBatterRace(now) {
   if (!batterRace) return;
   const race = batterRace, runner = race.runner;
+  if (race.kind === 'sacfly') {
+    const safe = runner.b >= 4 || runner.g.position.distanceTo(BP[4]) <= 1.25;
+    batterRace = null; runner.sp = 0; runner.to = safe ? 4 : runner.b;
+    if (safe) {
+      runner.b = 4; recordRunnerScore(runner); addScore(1); runner.on = false; runner.g.visible = false;
+      flash('세이프! 득점!', '홈 송구보다 주자가 먼저 도착했습니다.');
+      snd(820, 0.18, 'sine', 0.24, 1250);
+    } else {
+      runner.out = true; runner.on = false; runner.g.visible = false; addOut(1);
+      flash('홈에서 아웃!', '포수의 태그가 먼저 들어왔습니다.');
+      snd(190, 0.2, 'sawtooth', 0.22, 75);
+    }
+    finishBatterPA(); S.phase = 'result'; board(); return;
+  }
   const safe = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9;
   batterRace = null;
   runner.to = safe ? 1 : runner.b;
@@ -964,8 +1001,8 @@ function attemptSteal() {
   const now = performance.now();
   if (!isStealing) {
     isStealing = true;
-    // 연타를 많이 하지 않아도 주자의 실제 도착 속도로 성공 판정합니다.
-    stealSpeedBonus = 18;
+    // 무입력으로는 어렵고, 한두 번의 연타로 승부할 수 있게 속도를 조정합니다.
+    stealSpeedBonus = 12.5;
     activeStealRunner = occ[runnerIdx];
     const targetBase = runnerIdx + 1;
     
@@ -981,7 +1018,7 @@ function attemptSteal() {
     snd(500, 0.1, 'sine', 0.2);
     
     // 도루 시도에 투수가 견제할 수 있습니다.
-    const pickedOff = Math.random() < 0.08;
+    const pickedOff = Math.random() < 0.14;
     setTimeout(() => {
       if (!isStealing || !activeStealRunner) return;
 
@@ -1003,7 +1040,7 @@ function attemptSteal() {
       }
       
       // 주자가 베이스에 먼저 도착했거나 연타 속도가 충분하면 세이프 처리합니다.
-      if (activeStealRunner.b >= targetBase || stealSpeedBonus >= 20) {
+      if (activeStealRunner.b >= targetBase || stealSpeedBonus >= 18.5) {
         flash("⚡ 도루 성공!", "빠른 연타로 진루!");
         occ[targetBase] = activeStealRunner;
         occ[runnerIdx] = null;
@@ -1023,7 +1060,7 @@ function attemptSteal() {
     }, 2000);
   } else {
     // 도루 진행 중 연타 시 주자 속도 증가
-    stealSpeedBonus = Math.min(32, stealSpeedBonus + 3.5);
+    stealSpeedBonus = Math.min(26, stealSpeedBonus + 2.0);
     if (activeStealRunner) {
       activeStealRunner.sp = stealSpeedBonus;
     }
@@ -1110,7 +1147,7 @@ function throwPitch() {
     const off = T.bias + 170 * (1 + Math.max(Math.abs(tx), Math.abs(ty)) * 0.8) * (R(-1, 1) + R(-1, 1)) / 1.5;
     setTimeout(() => {
       if (P !== me || S.phase !== 'pitch') return;
-      sw = { t: performance.now() }; resolve(off);
+      sw = { t: performance.now(), ai: true }; resolve(off);
     }, me.arrive - CONTACT + off - now);
   }
 }
@@ -1136,8 +1173,8 @@ function startTimingGauge(startT, arriveT) {
 }
 
 /* ---------- 타격 판정 연산 ---------- */
-const LABEL = { hr: '홈런!', double: '2루타', single: '안타', groundout: '땅볼 아웃', flyout: '뜬공 아웃', foul: '파울', whiff: '헛스윙', strike: '스트라이크', ball: '볼' };
-const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [19, 0.4], flyout: [17, 16], foul: [20, 12] };
+const LABEL = { hr: '홈런!', double: '2루타', single: '안타', bunt: '번트!', groundout: '땅볼 아웃', flyout: '뜬공 아웃', foul: '파울', whiff: '헛스윙', strike: '스트라이크', ball: '볼' };
+const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [19, 0.4], bunt: [8.5, 0.06], flyout: [17, 16], foul: [20, 12] };
 
 function resolve(off) {
   P.done = true; S.phase = 'result';
@@ -1158,35 +1195,40 @@ function resolve(off) {
     pendingABSCall = null;
     updateABS(P.tx, P.ty, '스윙 · 타격 판정');
     const q = Math.abs(off) + (P.actualInZone ? 0 : 70);
-    r = off < -280 ? 'whiff' : q < 30 ? 'hr' : q < 62 ? 'double' : q < 100 ? 'single' : q < 145 ? (Math.random() < 0.68 ? 'groundout' : 'flyout') : q < 210 ? 'foul' : 'whiff';
-    parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
+    if (buntMode && S.mode === 'bat' && sw?.user) {
+      r = q < 185 ? 'bunt' : q < 275 ? 'foul' : 'whiff';
+      buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
+    } else {
+      r = off < -280 ? 'whiff' : q < 30 ? 'hr' : q < 62 ? 'double' : q < 100 ? 'single' : q < 145 ? (Math.random() < 0.68 ? 'groundout' : 'flyout') : q < 210 ? 'foul' : 'whiff';
+      parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
+    }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
     else setTimeout(hitSound, CONTACT);
   }
 
   if (SPD[r]) {
     if (r !== 'foul') setTimeout(() => { bt.visible = false; }, 560);
-    const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r], s = vh * R(0.9, 1.1);
+    const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r], s = vh * R(0.9, 1.1);
     const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', chase: null };
     if (r !== 'hr' && r !== 'foul') {
       const possiblePlay = defend(path);
       // 안타/2루타로 판정된 타구는 포구 추정만으로 아웃으로 뒤집지 않습니다.
-      const dd = r === 'groundout' || r === 'flyout' ? possiblePlay : null;
+      const dd = r === 'groundout' || r === 'flyout' || r === 'bunt' ? possiblePlay : null;
       if (dd) {
         const b = path[dd.i];
         const firstBaseTime = dd.i / 60 + Math.hypot(b.x - B1.x, b.z - B1.z) / 10.5;
         if (dd.air) {
           r = 'flyout';
-        } else if (r === 'groundout') {
+        } else if (r === 'groundout' || r === 'bunt') {
           const cover = dd.f === F[0] ? F[1] : F[0];
           const coverTime = Math.hypot(cover.home.x - B1.x, cover.home.z - B1.z) / (SPDF * 1.5 * 1.7);
           const canCoverFirst = coverTime <= dd.i / 60 / 1.7 + 1.3 / 1.7;
           // 1루가 비어 있으면 땅볼 아웃 판정을 1루 승부 이벤트로 진행해 주루 타이밍을 보여줍니다.
-          r = !occ[1] || (firstBaseTime < 4.15 && canCoverFirst) ? 'groundout' : 'single';
+          if (r === 'groundout') r = !occ[1] || (firstBaseTime < 4.15 && canCoverFirst) ? 'groundout' : 'single';
         } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
-        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout', cover, throwTo: r === 'groundout' ? B1T.clone() : null, throwDuration: 1.3 };
+        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.3 };
       } else {
         // 포구 가능한 수비수가 없으면 플라이도 인플레이 안타로 처리합니다.
         if (r === 'groundout' || r === 'flyout') {
@@ -1216,6 +1258,15 @@ function resolve(off) {
     if (deferForFielding(1, tt, ex)) label = '호수비 찬스!';
     else { recordBatterHit(1); advance(1, ex, tt); }
   }
+  else if (r === 'bunt') {
+    if (!occ[1] && hit?.plan?.throwTo) {
+      beginBatterRace(tt); label = '번트 1루 승부!';
+    } else if (!occ[1]) {
+      recordBatterHit(1); advance(1, 0, tt); label = '번트 안타!';
+    } else {
+      recordBatterOut(); advanceRunnersOnBunt(tt); addOut(1); label = '희생번트 성공!';
+    }
+  }
   else if (r === 'groundout') {
     if (!occ[1] && hit && hit.plan && hit.plan.throwTo) {
       beginBatterRace(tt);
@@ -1227,7 +1278,11 @@ function resolve(off) {
       addOut(dp ? 2 : 1);
     }
   }
-  else if (r === 'flyout') { recordBatterOut(); addOut(1); }
+  else if (r === 'flyout') {
+    const sacFlyChance = S.mode === 'bat' && S.outs < 2 && !!occ[3];
+    recordBatterOut(); addOut(1);
+    if (sacFlyChance) { beginSacFlyRace(tt); label = '희생플라이 승부!'; parts.push('연타로 홈 송구보다 먼저 도착하세요'); }
+  }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
   else if (r === 'strike' || r === 'whiff') { S.strikes++; if (S.strikes >= 3) { label = '삼진 아웃'; recordBatterOut(); if (S.mode === 'pitch') currentPitcherStats().strikeouts++; else opponentPitcherStats.strikeouts++; addOut(1); } }
   else if (r === 'ball') { S.balls++; if (S.balls >= 4) { label = '볼넷'; if (S.mode === 'bat') { batterStats.pa++; batterStats.walks++; opponentPitcherStats.walks++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().walks++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.walks++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); } }
@@ -1251,6 +1306,13 @@ function end() {
   overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', '나 ' + S.sc[0] + ' : ' + S.sc[1] + ' 상대\n안타 ' + S.hits + '개, 홈런 ' + S.hr + '개', '');
 }
 
+function toggleBunt() {
+  if (S.mode !== 'bat' || S.phase === 'running') return;
+  buntMode = !buntMode;
+  board();
+  flash(buntMode ? '번트 준비!' : '번트 취소', buntMode ? '다음 스윙에서 번트를 시도합니다.' : '일반 스윙으로 돌아갑니다.');
+}
+
 function setBatterSide(side) {
   batterSide = side === 'L' ? 'L' : 'R';
   bt.scale.x = batterSide === 'L' ? -1 : 1;
@@ -1261,6 +1323,7 @@ function setBatterSide(side) {
 
 function start(m) {
   clearTimeout(timer); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
+  buntMode = false;
   if (pendingFieldingPlay) { clearTimeout(pendingFieldingPlay.cueTimer); clearTimeout(pendingFieldingPlay.settleTimer); pendingFieldingPlay = null; }
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
   lineup = Array.from({ length: 9 }, (_, i) => {
@@ -1290,7 +1353,7 @@ function act() {
   if (S.phase === 'idle' || S.phase === 'over') return start(S.fm);
   if (S.phase === 'aim') { if (S.mode === 'pitch') return throwPitch(); return; }
   if (S.phase !== 'pitch' || sw || S.mode === 'pitch') return;
-  const now = performance.now(); sw = { t: now }; resolve(now + CONTACT - P.arrive);
+  const now = performance.now(); sw = { t: now, user: true }; resolve(now + CONTACT - P.arrive);
 }
 
 /* ---------- 메인 프레임 렌더링 Loop ---------- */
@@ -1342,8 +1405,8 @@ function tick(now) {
     swingArms.rotation.z = elapsed < 170 ? -0.12 * load : elapsed < 360 ? -0.12 + 0.48 * drive : 0.36 - 0.18 * finish;
     bat.rotation.y = elapsed < 170 ? -0.25 * load : elapsed < 360 ? -0.25 + 0.58 * drive : 0.33 - 0.25 * finish;
     bat.rotation.z = elapsed < 170 ? BAT_READY - 0.62 * recoil : elapsed < 360 ? BAT_READY - 0.62 + 2.05 * drive : BAT_READY + 1.43 - 0.5 * finish;
-    up.rotation.y = elapsed < 170 ? -0.04 - 0.12 * load : elapsed < 360 ? -0.16 + 0.31 * drive : 0.15 - 0.08 * finish;
-    bt.rotation.y = elapsed < 170 ? -0.04 * load : elapsed < 360 ? -0.04 + 0.11 * drive : 0.07 - 0.03 * finish;
+    up.rotation.y = elapsed < 170 ? -0.05 - 0.14 * load : elapsed < 360 ? -0.19 + 0.36 * drive : 0.17 - 0.09 * finish;
+    bt.rotation.y = elapsed < 170 ? -0.05 * load : elapsed < 360 ? -0.05 + 0.15 * drive : 0.10 - 0.04 * finish;
     const frontLeg = batterSide === 'R' ? batterLegs[1] : batterLegs[0];
     frontLeg.rotation.z = elapsed < 170 ? 0.03 * load : elapsed < 360 ? 0.03 - 0.13 * drive : -0.10 + 0.07 * finish;
   } else {
@@ -1369,7 +1432,7 @@ function tick(now) {
     if (d <= st) { q.x = tg.x; q.z = tg.z; r.b++; } else { q.x += dx / d * st; q.z += dz / d * st; }
     r.g.rotation.y = Math.atan2(dx, dz);
   });
-  if (batterRace && (now >= batterRace.callAt || batterRace.runner.b >= 1)) settleBatterRace(now);
+  if (batterRace && (now >= batterRace.callAt || batterRace.runner.b >= (batterRace.kind === 'sacfly' ? 4 : 1))) settleBatterRace(now);
   
   // 수비 AI 이동
   if (hit && hit.path && hit.path.length > 0) {
@@ -1440,7 +1503,7 @@ function tick(now) {
     }
     ball.rotation.x -= dt * 18;
   }
-  if (defensiveThrow) {
+  if (defensiveThrow && now >= defensiveThrow.start) {
     const progress = C((now - defensiveThrow.start) / defensiveThrow.duration, 0, 1);
     ball.position.lerpVectors(defensiveThrow.from, defensiveThrow.to, progress);
     ball.position.y += Math.sin(progress * Math.PI) * 2.2;
@@ -1519,6 +1582,7 @@ stage.addEventListener('pointermove', e => { if (S.mode === 'pitch' && S.phase =
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); b.blur(); } });
 $('mobileAct').addEventListener('click', () => act());
 $('mobileSteal').addEventListener('click', () => S.phase === 'running' ? sprintBatter() : attemptSteal());
+$('buntBtn').addEventListener('click', toggleBunt);
 $('changePitcherBtn').addEventListener('click', openPitcherModal);
 $('closePitcherModal').addEventListener('click', () => { 
   $('pitcherModal').hidden = true; 
@@ -1545,6 +1609,7 @@ $('challengeBtn').addEventListener('click', challengeABS);
 addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) act(); }
   else if (e.code === 'KeyS') { S.phase === 'running' ? sprintBatter() : attemptSteal(); }
+  else if (e.code === 'KeyB' && !e.repeat) toggleBunt();
   else if (S.mode === 'pitch' && S.phase === 'aim') {
     if (e.key >= '1' && e.key <= '7') setPT(+e.key - 1);
     const m = { ArrowLeft: [-0.04, 0], ArrowRight: [0.04, 0], ArrowUp: [0, 0.04], ArrowDown: [0, -0.04] }[e.key];
