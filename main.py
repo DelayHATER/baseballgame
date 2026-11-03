@@ -1364,6 +1364,7 @@ function resolve(off) {
       q *= pciInsideContact ? 0.76 : 1.15;
     }
     if (hitter && battingMode === 'contact' && !buntMode) q *= 0.78;
+    if (hitter && !buntMode) q *= difficulty === 'easy' ? 0.82 : difficulty === 'hard' ? 1.2 : 1;
     if (buntMode && S.mode === 'bat' && sw?.user) {
       r = q < 82 ? 'bunt' : q < 140 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
@@ -1373,7 +1374,7 @@ function resolve(off) {
       const modeWhiff = battingMode === 'power' ? 0.12 : battingMode === 'contact' ? 0.003 : 0.015;
       const extraWhiff = hitter && sw?.user && Math.random() < contactWhiff + modeWhiff;
       if (off < -280 || extraWhiff || (pciOutsideContact && Math.random() < 0.78)) r = 'whiff';
-      else r = q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      else r = q < 6 ? 'hr' : q < 28 ? 'double' : q < 62 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       if (hitter && battingMode === 'contact' && !buntMode) {
         if (r === 'hr') r = 'double';
         else if (r === 'double' && Math.random() < 0.75) r = 'single';
@@ -1401,15 +1402,15 @@ function resolve(off) {
       const dd = possiblePlay;
       if (dd) {
         if (wasHit) {
-          const directness = C(1 - dd.distance / 5, 0, 1);
-          const catchChance = dd.air ? 0.14 + directness * 0.72 : 0.18 + directness * 0.77;
+          const directness = C(1 - dd.distance / 24, 0, 1);
+          const catchChance = dd.air ? 0.14 + directness * 0.72 : 0.55 + directness * 0.43;
           if (Math.random() < catchChance) r = dd.air ? 'flyout' : 'groundout';
         } else if (dd.air) r = 'flyout';
         else if (r === 'groundout' || r === 'bunt') {
           // 내야수가 포구 가능한 땅볼은 안타로 되돌리지 않고 아웃/1루 승부로 처리합니다.
         } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
-        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.3 };
+        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.6 };
       } else {
         // 포구 가능한 수비수가 없으면 플라이도 인플레이 안타로 처리합니다.
         if (r === 'groundout' || r === 'flyout') {
@@ -1659,12 +1660,13 @@ function tick(now) {
   }
   if (homeRunCelebrationUntil > now) {
     const celebrationT = now / 1000;
+    const celebrationProgress = C(1 - (homeRunCelebrationUntil - now) / 2600, 0, 1);
     bt.visible = true;
     swingArms.rotation.set(-0.32, 0.12, 0.82 + Math.sin(celebrationT * 7) * 0.12);
     bat.rotation.set(0, -0.08, BAT_READY + 1.35);
     up.rotation.set(-0.12, 0.1 + Math.sin(celebrationT * 7) * 0.04, 0);
-    bt.rotation.y = Math.sin(celebrationT * 3) * 0.08;
-    bt.position.y = 0.02 + Math.abs(Math.sin(celebrationT * 5)) * 0.035;
+    bt.rotation.y = celebrationProgress * Math.PI * 2;
+    bt.position.y = 0.045 * Math.sin(celebrationProgress * Math.PI);
   }
   
   // 주자 위치 갱신
@@ -1874,7 +1876,7 @@ $('challengeBtn').addEventListener('click', challengeABS);
 addEventListener('keydown', e => {
   if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { e.preventDefault(); if (!e.repeat) { if (S.mode === 'bat') togglePCI(); else beginPitchCharge(); } }
-  else if (e.code === 'Space') { if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return; e.preventDefault(); if (!e.repeat) act(); }
+  else if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) act(); }
   else if (e.code === 'KeyS') useSprintAction();
   else if (e.code === 'KeyB' && !e.repeat) toggleBunt();
   else if (S.mode === 'pitch' && S.phase === 'aim') {
@@ -1884,6 +1886,7 @@ addEventListener('keydown', e => {
   }
 });
 addEventListener('keyup', e => {
+  if (e.code === 'Space') e.preventDefault();
   if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && pitchCharge) { e.preventDefault(); releasePitchCharge(); }
 });
 addEventListener('blur', cancelPitchCharge);
@@ -1897,3 +1900,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
+
