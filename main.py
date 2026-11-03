@@ -164,8 +164,8 @@ body {
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
-        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다. 난이도와 이닝도 여기서 고를 수 있습니다.
+        경기 전에 구장을 고르세요.<br>
+        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
