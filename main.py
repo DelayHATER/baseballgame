@@ -2,7 +2,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="BaseBall 3D Pro", page_icon="⚾", layout="wide")
+st.set_page_config(page_title="타이밍 야구 3D Pro", page_icon="⚾", layout="wide")
 st.markdown("""
 <style>
   [data-testid="stHeader"], [data-testid="stToolbar"] {visibility:hidden; height:0;}
@@ -16,7 +16,7 @@ GAME_HTML = r'''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Baseball 3D Pro</title>
+<title>타이밍 야구 3D Pro</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;600;800&display=swap">
@@ -71,7 +71,7 @@ body {
 #timingCursor { position: absolute; left: 0%; width: 4px; height: 100%; background: #ef4444; box-shadow: 0 0 6px #ef4444; }
 
 /* 오버레이 메뉴 */
-#ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; background: rgba(6,13,23,0.92); backdrop-filter: blur(4px); z-index: 30; }
+#ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; overflow-y:auto; background: rgba(6,13,23,0.92); backdrop-filter: blur(4px); z-index: 30; }
 #ov[hidden] { display: none; }
 
 /* 컨트롤 */
@@ -97,6 +97,9 @@ body {
 .lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:120px; overflow:auto; padding:4px; }
 .lineup-grid label { color:#cbd5e1; font-size:10px; text-align:left; }
 .lineup-grid input { display:block; width:100%; min-width:0; margin-top:2px; border:1px solid #475569; border-radius:5px; background:#0f172a; color:#fff; padding:5px; font-size:11px; }
+.team-name-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:min(100%,440px); }
+.team-name-inputs label { color:#cbd5e1; font-size:11px; text-align:left; }
+.team-name-inputs input { display:block; width:100%; margin-top:3px; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#fff; padding:6px; font-size:12px; }
 </style>
 </head>
 <body>
@@ -110,7 +113,7 @@ body {
         <b id="inn" class="text-amber-400 text-base font-title">1회 초</b>
       </div>
       <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-        <span class="text-slate-400 block text-[10px]">나 : 상대</span>
+        <span id="scoreTeams" class="text-slate-400 block text-[10px]">우리 팀 : 상대 팀</span>
         <b id="score" class="text-white text-base font-title">0 : 0</b>
       </div>
     </div>
@@ -186,6 +189,10 @@ body {
         <span class="setting-label">타석 방향</span>
         <button class="stadium-choice on" data-batside="R">우타</button>
         <button class="stadium-choice" data-batside="L">좌타</button>
+      </div>
+      <div class="team-name-inputs">
+        <label>내 팀 이름<input id="ownTeamName" maxlength="12" value="우리 팀"></label>
+        <label>상대 팀 이름<input id="opponentTeamName" maxlength="12" value="상대 팀"></label>
       </div>
       <div class="lineup-grid" id="lineupInputs">
         <label>1번 타자<input id="lineupName0" maxlength="12" value="1번 타자"></label>
@@ -271,6 +278,7 @@ const PITCHERS = [
 let currentPitcherIdx = 0;
 let pitcherStamina = 100;
 let selectedStadium = 0;
+let teamNames = ['우리 팀', '상대 팀'];
 let difficulty = 'normal';
 let maxInnings = 3;
 let batterSide = 'R';
@@ -478,8 +486,11 @@ function drawScoreboard() {
   g.fillStyle = color; g.fillRect(8, 8, w - 16, h - 16);
   g.fillStyle = '#ffffff'; g.font = 'bold 22px sans-serif'; g.textAlign = 'left';
   g.fillText(STADIUMS[selectedStadium].name.toUpperCase(), 24, 38);
+  g.font = 'bold 17px sans-serif'; g.textAlign = 'left';
+  g.fillText(teamNames[0].slice(0, 12), 24, 64);
+  g.textAlign = 'right'; g.fillText(teamNames[1].slice(0, 12), w - 24, 64);
   g.font = 'bold 32px sans-serif'; g.textAlign = 'center';
-  g.fillText(`${S.sc[0]}  :  ${S.sc[1]}`, w / 2, 84);
+  g.fillText(`${S.sc[0]}  :  ${S.sc[1]}`, w / 2, 94);
   g.font = 'bold 19px sans-serif'; g.textAlign = 'right';
   g.fillText(`${Math.min((S.h >> 1) + 1, maxInnings)}회 ${S.h % 2 ? '말' : '초'}   O ${S.outs}`, w - 22, 113);
   scoreTexture.needsUpdate = true;
@@ -593,10 +604,11 @@ function refreshPitchButtons() {
 }
 
 function zoneCall(tx, ty) {
-  const actual = Math.abs(tx) <= 0.55 && Math.abs(ty) <= 0.52;
-  const edge = Math.min(Math.abs(Math.abs(tx) - 0.55), Math.abs(Math.abs(ty) - 0.52));
-  const challengeable = edge <= 0.14;
-  const wrong = challengeable && Math.random() < 0.16;
+  // ABS 표시의 3x3 중앙 셀(±0.9)과 실제 판정 존을 동일하게 맞춥니다.
+  const actual = Math.abs(tx) <= 0.9 && Math.abs(ty) <= 0.9;
+  const edge = Math.min(Math.abs(Math.abs(tx) - 0.9), Math.abs(Math.abs(ty) - 0.9));
+  const challengeable = edge <= 0.22;
+  const wrong = challengeable && Math.random() < 0.24;
   return { actual, called: wrong ? !actual : actual, challengeable, wrong };
 }
 
@@ -673,19 +685,20 @@ function updateStatsUI() {
   const teamERA = teamIP ? (teamPitch.earnedRuns * 9 / teamIP).toFixed(2) : '—';
   const teamWHIP = teamIP ? ((teamPitch.walks + teamPitch.hits) / teamIP).toFixed(2) : '—';
   $('batterStats').innerHTML = `AVG ${teamAvg.toFixed(3)} · OBP ${teamOBP.toFixed(3)} · SLG ${teamSLG.toFixed(3)} · OPS ${(teamOBP + teamSLG).toFixed(3)}<br>득점 ${teamBat.runs} · 타점 ${teamBat.rbi} · 안타 ${teamBat.hits} · BB ${teamBat.walks} · HBP ${teamBat.hbp}`;
-  $('pitcherGameStats').textContent = `ERA ${teamERA} · K ${teamPitch.strikeouts} · BB ${teamPitch.walks} · WHIP ${teamWHIP} · HBP ${teamPitch.hbp}`;
+  $('pitcherGameStats').textContent = `ERA ${teamERA} · K ${teamPitch.strikeouts} · BB ${teamPitch.walks} · WHIP ${teamWHIP} · 피안타 ${teamPitch.hits} · HBP ${teamPitch.hbp}`;
   const batterTop = $('batterSummary');
   $('batterSideLabel').textContent = ownBatter ? '내 타자 기록' : '상대 타자 기록';
   $('pitcherSideLabel').textContent = ownBatter ? '상대 투수 기록' : '내 투수 기록';
   if (batterTop) batterTop.innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번 ${ownBatter ? lineup[battingOrderIndex].name : opponentLineup[opponentBatterIndex].name}</strong><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${bs.runs} · 타점 ${bs.rbi} · 안타 ${bs.hits}`;
   const pitcherTop = $('pitcherSummaryTop');
-  if (pitcherTop) pitcherTop.innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · HBP ${ps.hbp}`;
+  if (pitcherTop) pitcherTop.innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · 피안타 ${ps.hits} · HBP ${ps.hbp}`;
 }
 
 function recordBatterHit(bases) {
   const stats = S.mode === 'bat' ? batterStats : opponentLineup[opponentBatterIndex].stats;
   stats.pa++; stats.ab++; stats.hits++; stats.totalBases += bases;
   if (S.mode === 'bat') opponentPitcherStats.hits++;
+  else currentPitcherStats().hits++;
   batterPAMode = S.mode; batterPAComplete = true;
 }
 function recordBatterOut() {
@@ -822,6 +835,7 @@ function board() {
   $('buntBtn').disabled = S.mode !== 'bat' || S.phase === 'running';
   $('inn').textContent = (Math.min(S.h >> 1, maxInnings - 1) + 1) + '회 ' + (S.h % 2 ? '말' : '초') + (S.mode === 'bat' ? ' 공격' : ' 수비');
   $('score').textContent = S.sc[0] + ' : ' + S.sc[1];
+  $('scoreTeams').textContent = `${teamNames[0].slice(0, 8)} : ${teamNames[1].slice(0, 8)}`;
   $('b').textContent = dots(S.balls, 3);
   $('s').textContent = dots(S.strikes, 2);
   $('o').textContent = dots(S.outs, 2);
@@ -832,7 +846,7 @@ function board() {
   const challengeButton = $('challengeBtn');
   challengeButton.style.display = pendingABSCall ? 'block' : 'none';
   challengeButton.disabled = !pendingABSCall || challengeCount <= 0;
-  challengeButton.textContent = `⚖️ 챌린지 (${challengeCount})`;
+  challengeButton.textContent = `⚖️ ABS 판정 번복 (${challengeCount})`;
   refreshPitchButtons();
   updateStatsUI();
   updatePitcherUI();
@@ -875,7 +889,6 @@ function advance(n, ex, t0) {
   if (n >= 4) { recordRunnerScore(b); addScore(1); } else no[n] = b;
   setOcc(no); S.balls = S.strikes = 0;
   if (S.mode === 'bat') S.hits++;
-  else if (S.mode === 'pitch') currentPitcherStats().hits++;
 }
 
 function advanceRunnersOnBunt(t0) {
@@ -1187,9 +1200,9 @@ function resolve(off) {
     updateABS(P.tx, P.ty, `${r === 'strike' ? '스트라이크' : r === 'hbp' ? '몸에 맞음' : '볼'} 판정`, wrongCall);
     const safeToChallenge = r === 'strike' ? S.strikes < 2 : r === 'ball' ? S.balls < 3 : false;
     pendingABSCall = P.challengeable && wrongCall && safeToChallenge
-      ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: performance.now() + 1800 }
+      ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: performance.now() + 3000 }
       : null;
-    if (pendingABSCall) setTimeout(() => { if (pendingABSCall && performance.now() >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 1850);
+    if (pendingABSCall) setTimeout(() => { if (pendingABSCall && performance.now() >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 3050);
     snd(220, 0.08, 'triangle', 0.3, 90);
   } else {
     pendingABSCall = null;
@@ -1199,7 +1212,7 @@ function resolve(off) {
       r = q < 185 ? 'bunt' : q < 275 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      r = off < -280 ? 'whiff' : q < 30 ? 'hr' : q < 62 ? 'double' : q < 100 ? 'single' : q < 145 ? (Math.random() < 0.68 ? 'groundout' : 'flyout') : q < 210 ? 'foul' : 'whiff';
+      r = off < -280 ? 'whiff' : q < 13 ? 'hr' : q < 52 ? 'double' : q < 100 ? 'single' : q < 162 ? (Math.random() < 0.72 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
@@ -1303,7 +1316,7 @@ function resolve(off) {
 function end() {
   S.phase = 'over'; const d = S.sc[0] - S.sc[1];
   board(); $('types').hidden = true;
-  overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', '나 ' + S.sc[0] + ' : ' + S.sc[1] + ' 상대\n안타 ' + S.hits + '개, 홈런 ' + S.hr + '개', '');
+  overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', `${teamNames[0]} ${S.sc[0]} : ${S.sc[1]} ${teamNames[1]}\n안타 ${S.hits}개, 홈런 ${S.hr}개`, '');
 }
 
 function toggleBunt() {
@@ -1324,6 +1337,10 @@ function setBatterSide(side) {
 function start(m) {
   clearTimeout(timer); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
   buntMode = false;
+  teamNames = [
+    $('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀',
+    $('opponentTeamName')?.value?.trim().slice(0, 12) || '상대 팀'
+  ];
   if (pendingFieldingPlay) { clearTimeout(pendingFieldingPlay.cueTimer); clearTimeout(pendingFieldingPlay.settleTimer); pendingFieldingPlay = null; }
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
   lineup = Array.from({ length: 9 }, (_, i) => {
@@ -1626,5 +1643,4 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
