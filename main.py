@@ -71,7 +71,7 @@ body {
 #timingCursor { position: absolute; left: 0%; width: 4px; height: 100%; background: #ef4444; box-shadow: 0 0 6px #ef4444; }
 
 /* 오버레이 메뉴 */
-#ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 20px; overflow-y:auto; background: rgba(6,13,23,0.92); backdrop-filter: blur(4px); z-index: 30; }
+#ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 7px; padding: 12px; overflow-y:auto; background: rgba(6,13,23,0.92); backdrop-filter: blur(4px); z-index: 30; }
 #ov[hidden] { display: none; }
 
 /* 컨트롤 */
@@ -94,7 +94,7 @@ body {
 .top-summaries { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .summary-card { min-width:0; border:1px solid #334155; border-radius:9px; background:#0f172a; padding:8px 10px; color:#e2e8f0; font-size:11px; }
 .summary-card b { display:block; font-size:12px; margin-bottom:3px; }
-.lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:120px; overflow:auto; padding:4px; }
+.lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:112px; overflow:auto; padding:4px; }
 .lineup-grid label { color:#cbd5e1; font-size:10px; text-align:left; }
 .lineup-grid input { display:block; width:100%; min-width:0; margin-top:2px; border:1px solid #475569; border-radius:5px; background:#0f172a; color:#fff; padding:5px; font-size:11px; }
 .team-name-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:min(100%,440px); }
@@ -190,10 +190,6 @@ body {
         <button class="stadium-choice on" data-batside="R">우타</button>
         <button class="stadium-choice" data-batside="L">좌타</button>
       </div>
-      <div class="team-name-inputs">
-        <label>내 팀 이름<input id="ownTeamName" maxlength="12" value="우리 팀"></label>
-        <label>상대 팀 이름<input id="opponentTeamName" maxlength="12" value="상대 팀"></label>
-      </div>
       <div class="lineup-grid" id="lineupInputs">
         <label>1번 타자<input id="lineupName0" maxlength="12" value="1번 타자"></label>
         <label>2번 타자<input id="lineupName1" maxlength="12" value="2번 타자"></label>
@@ -204,6 +200,10 @@ body {
         <label>7번 타자<input id="lineupName6" maxlength="12" value="7번 타자"></label>
         <label>8번 타자<input id="lineupName7" maxlength="12" value="8번 타자"></label>
         <label>9번 타자<input id="lineupName8" maxlength="12" value="9번 타자"></label>
+      </div>
+      <div class="team-name-inputs">
+        <label>내 팀 이름<input id="ownTeamName" maxlength="12" value="우리 팀"></label>
+        <label>상대 팀 이름<input id="opponentTeamName" maxlength="12" value="상대 팀"></label>
       </div>
       <div class="flex gap-3 mt-2">
         <button id="go" class="btn-action px-6 py-3 text-base">공격(타자)부터 시작</button>
@@ -312,6 +312,8 @@ let timingAnimId = null;
 let isStealing = false;
 let stealSpeedBonus = 0;
 let activeStealRunner = null;
+let stealRace = null;
+let stealTimer = 0;
 let batterRace = null;
 let pendingFieldingPlay = null;
 let buntMode = false;
@@ -507,7 +509,7 @@ function figure(shirt, cap, x, z) {
   mk(new THREE.SphereGeometry(0.14, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(cap), 0, 1.62, 0, g);
   g.position.set(x, 0, z); scene.add(g); return g;
 }
-const SPDF = 7, B1 = V3(19.4, 0, -19.4), B1T = V3(19.4, 1.2, -19.4), MT = V3(0, 1.2, -18.4), B2T = V3(0, 1.2, -38.8), B2P = V3(0, 0, -38.8);
+const SPDF = 5.8, B1 = V3(19.4, 0, -19.4), B1T = V3(19.4, 1.2, -19.4), MT = V3(0, 1.2, -18.4), B2T = V3(0, 1.2, -38.8), B2P = V3(0, 0, -38.8);
 const F = [[17, -20], [7, -31], [-7, -31], [-17, -20], [-40, -62], [0, -76], [40, -62]].map(([x, z]) => {
   const g = figure(0xcfd6e0, 0xb02020, x, z); g.rotation.y = Math.atan2(-x, 5 - z);
   return { g, home: V3(x, 0, z) };
@@ -968,7 +970,7 @@ function settleBatterRace(now) {
   if (!batterRace) return;
   const race = batterRace, runner = race.runner;
   if (race.kind === 'sacfly') {
-    const safe = runner.b >= 4 || runner.g.position.distanceTo(BP[4]) <= 1.25;
+    const safe = runner.b >= 4 || runner.g.position.distanceTo(BP[4]) <= 0.5;
     batterRace = null; runner.sp = 0; runner.to = safe ? 4 : runner.b;
     if (safe) {
       runner.b = 4; recordRunnerScore(runner); addScore(1); runner.on = false; runner.g.visible = false;
@@ -1005,6 +1007,25 @@ function settleBatterRace(now) {
 }
 
 /* ---------- 도루(Steal) 연타 기능 ---------- */
+function finishStealRace(safe) {
+  const race = stealRace;
+  if (!race) return;
+  clearTimeout(stealTimer); stealTimer = 0; stealRace = null;
+  const { runner, runnerIdx, targetBase } = race;
+  if (safe) {
+    runner.g.position.copy(BP[targetBase]); runner.b = targetBase; runner.to = targetBase;
+    occ[targetBase] = runner; occ[runnerIdx] = null; setOcc(occ);
+    flash('⚡ 도루 성공!', '주자가 송구보다 먼저 베이스에 닿았습니다.');
+    snd(700, 0.15, 'sine', 0.25, 1000);
+  } else {
+    runner.out = true; runner.h = 0;
+    occ[runnerIdx] = null; setOcc(occ); addOut(1);
+    flash('도루 아웃!', '송구가 주자보다 먼저 베이스에 도착했습니다.');
+    snd(200, 0.2, 'sawtooth', 0.3, 100);
+  }
+  isStealing = false; activeStealRunner = null; board();
+}
+
 function attemptSteal() {
   if (S.mode !== 'bat' || (S.phase !== 'aim' && S.phase !== 'wait')) return;
   
@@ -1014,7 +1035,7 @@ function attemptSteal() {
   const now = performance.now();
   if (!isStealing) {
     isStealing = true;
-    // 무입력으로는 어렵고, 한두 번의 연타로 승부할 수 있게 속도를 조정합니다.
+    // 주자가 송구 전에 베이스에 닿을 수 있도록 연타 속도와 송구 시간을 맞춥니다.
     stealSpeedBonus = 12.5;
     activeStealRunner = occ[runnerIdx];
     const targetBase = runnerIdx + 1;
@@ -1026,51 +1047,17 @@ function attemptSteal() {
     const thrower = runnerIdx === 2 || Math.random() < 0.45 ? 'catcher' : 'pitcher';
     const target = BP[targetBase].clone(); target.y = 1.25;
     const throwFrom = thrower === 'catcher' ? V3(0.15, 1.45, 0.8) : V3(PITCHERS[currentPitcherIdx].releaseX, PITCHERS[currentPitcherIdx].releaseY, -17.8);
-    defensiveThrow = { from: throwFrom, to: target, start: now, duration: 850, thrower, targetBase };
+    const throwDuration = 1500;
+    defensiveThrow = { from: throwFrom, to: target, start: now, duration: throwDuration, thrower, targetBase };
+    stealRace = { runner: activeStealRunner, runnerIdx, targetBase, throwAt: now + throwDuration };
     flash('⚠️ 견제 송구!', `${thrower === 'catcher' ? '포수' : '투수'}가 ${targetBase}루로 던집니다.`);
     snd(500, 0.1, 'sine', 0.2);
-    
-    // 도루 시도에 투수가 견제할 수 있습니다.
-    const pickedOff = Math.random() < 0.14;
-    setTimeout(() => {
-      if (!isStealing || !activeStealRunner) return;
-
-      if (pickedOff) {
-        flash('견제 아웃!', '투수가 도루를 간파했습니다.');
-        activeStealRunner.g.position.copy(BP[runnerIdx]);
-        activeStealRunner.b = runnerIdx;
-        activeStealRunner.to = runnerIdx;
-        activeStealRunner.out = true;
-        activeStealRunner.h = 0;
-        occ[runnerIdx] = null;
-        setOcc(occ);
-        isStealing = false;
-        activeStealRunner = null;
-        addOut(1);
-        snd(180, 0.22, 'sawtooth', 0.24, 75);
-        board();
-        return;
-      }
-      
-      // 주자가 베이스에 먼저 도착했거나 연타 속도가 충분하면 세이프 처리합니다.
-      if (activeStealRunner.b >= targetBase || stealSpeedBonus >= 18.5) {
-        flash("⚡ 도루 성공!", "빠른 연타로 진루!");
-        occ[targetBase] = activeStealRunner;
-        occ[runnerIdx] = null;
-        setOcc(occ);
-        snd(700, 0.15, 'sine', 0.25, 1000);
-      } else {
-        flash("OUT!", "속도가 부족해 태그아웃 되었습니다.");
-        activeStealRunner.out = true;
-        occ[runnerIdx] = null;
-        setOcc(occ);
-        addOut(1);
-        snd(200, 0.2, 'sawtooth', 0.3, 100);
-      }
-      isStealing = false;
-      activeStealRunner = null;
-      board();
-    }, 2000);
+    stealTimer = setTimeout(() => {
+      if (!stealRace) return;
+      const runner = stealRace.runner;
+      const atBase = runner.b >= targetBase || runner.g.position.distanceTo(BP[targetBase]) <= 0.7;
+      finishStealRace(atBase);
+    }, throwDuration);
   } else {
     // 도루 진행 중 연타 시 주자 속도 증가
     stealSpeedBonus = Math.min(26, stealSpeedBonus + 2.0);
@@ -1086,6 +1073,7 @@ function attemptSteal() {
 const WIND = 500;
 
 function pitch() {
+  if (stealRace) { timer = setTimeout(pitch, 80); return; }
   resetField(); const now = performance.now(), profile = DIFFICULTIES[difficulty], targetZone = Math.random() < profile.zoneRate;
   const pData = PITCHERS[currentPitcherIdx];
   if (S.mode === 'bat') S.pt = pData.pitches[Math.floor(Math.random() * pData.pitches.length)];
@@ -1209,10 +1197,10 @@ function resolve(off) {
     updateABS(P.tx, P.ty, '스윙 · 타격 판정');
     const q = Math.abs(off) + (P.actualInZone ? 0 : 70);
     if (buntMode && S.mode === 'bat' && sw?.user) {
-      r = q < 115 ? 'bunt' : q < 195 ? 'foul' : 'whiff';
+      r = q < 90 ? 'bunt' : q < 195 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      r = off < -280 ? 'whiff' : q < 13 ? 'hr' : q < 52 ? 'double' : q < 100 ? 'single' : q < 162 ? (Math.random() < 0.72 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      r = off < -280 ? 'whiff' : q < 8 ? 'hr' : q < 34 ? 'double' : q < 72 ? 'single' : q < 162 ? (Math.random() < 0.72 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
@@ -1419,7 +1407,7 @@ function tick(now) {
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const hold = 1 - smooth((elapsed - 250) / 260);
     swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold);
-    bat.rotation.set(-1.02 * hold, 0, -0.08 * hold + BAT_READY * (1 - hold));
+    bat.rotation.set(-Math.PI / 2 * hold, 0, -0.08 * hold + BAT_READY * (1 - hold));
     up.rotation.set(-0.06 * hold, 0.04 * hold, 0);
     bt.rotation.set(0.015 * hold, 0.035 * hold, 0);
     bt.position.set(0, 0.018 * hold, -0.075 * hold);
@@ -1446,7 +1434,7 @@ function tick(now) {
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
     up.rotation.set(-0.05, 0.04, 0);
     swingArms.rotation.set(-0.24, 0.08, 0.02);
-    bat.rotation.set(-1.02, 0, -0.08);
+    bat.rotation.set(-Math.PI / 2, 0, -0.08);
   } else {
     bt.position.set(0, 0, 0);
     bt.rotation.set(0, 0, 0);
@@ -1471,6 +1459,11 @@ function tick(now) {
     if (d <= st) { q.x = tg.x; q.z = tg.z; r.b++; } else { q.x += dx / d * st; q.z += dz / d * st; }
     r.g.rotation.y = Math.atan2(dx, dz);
   });
+  if (stealRace) {
+    const runner = stealRace.runner, targetBase = stealRace.targetBase;
+    const atBase = runner.b >= targetBase || runner.g.position.distanceTo(BP[targetBase]) <= 0.7;
+    if (atBase && now < stealRace.throwAt) finishStealRace(true);
+  }
   if (batterRace && (now >= batterRace.callAt || batterRace.runner.b >= (batterRace.kind === 'sacfly' ? 4 : 1))) settleBatterRace(now);
   
   // 수비 AI 이동
@@ -1665,4 +1658,7 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
+
 
