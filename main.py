@@ -175,7 +175,7 @@ body {
   <!-- 조작 안내 -->
   <p class="text-xs text-slate-400 text-center mt-1">
     📱 모바일: 버튼 터치로 스윙 / 투구 / 도루. 투구 전 대기시간 동안 도루 버튼 연타 시 주자 속도 증가!<br>
-    💻 PC: [스페이스바] 스윙/투구, [S]키 도루 연타, [1~7] 구종 선택, [방향키] 코스 이동.
+    💻 PC: [스페이스바] 스윙/투구, [S]키 도루·주루 연타, [1~7] 구종 선택, [방향키] 코스 이동.
   </p>
 </main>
 
@@ -225,6 +225,7 @@ let timingAnimId = null;
 let isStealing = false;
 let stealSpeedBonus = 0;
 let activeStealRunner = null;
+let batterRace = null;
 
 /* ---------- Three.js 3D 그래픽 설정 ---------- */
 const stage = $('stage');
@@ -410,7 +411,8 @@ mk(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x
   const a = mk(new THREE.CylinderGeometry(0.045, 0.04, 0.42, 8), mat(0xf0f0f0), 0.22, 0.375, dz, up);
   a.rotation.z = -2.54;
 });
-const bat = new THREE.Group(); bat.position.set(0.34, 0.2, 0); bat.rotation.z = -Math.PI / 2 - 0.14; up.add(bat);
+const BAT_READY = -0.72;
+const bat = new THREE.Group(); bat.position.set(0.28, 0.35, -0.08); bat.rotation.z = BAT_READY; up.add(bat);
 mk(new THREE.CylinderGeometry(0.05, 0.02, 1, 10), mat(0xc99a5b, 0.6), 0, 0.5, 0, bat);
 
 /* 야구공 */
@@ -519,7 +521,8 @@ function addScore(amount) {
 }
 
 function board() {
-  $('mobileAct').textContent = S.mode === 'pitch' ? '투구!' : S.phase === 'aim' ? '투구 대기 중' : '스윙!';
+  $('mobileAct').textContent = S.mode === 'pitch' ? '투구!' : S.phase === 'aim' ? '투구 대기 중' : S.phase === 'running' ? '주루 중…' : '스윙!';
+  $('mobileSteal').textContent = S.phase === 'running' ? '🏃 연타로 1루 질주!' : '⚡ 도루 연타!';
   $('inn').textContent = (Math.min(S.h >> 1, MAX_INN - 1) + 1) + '회 ' + (S.h % 2 ? '말' : '초') + (S.mode === 'bat' ? ' 공격' : ' 수비');
   $('score').textContent = S.sc[0] + ' : ' + S.sc[1];
   $('b').textContent = dots(S.balls, 3);
@@ -527,7 +530,7 @@ function board() {
   $('o').textContent = dots(S.outs, 2);
   document.querySelectorAll('.bs').forEach((e, i) => e.classList.toggle('on', !!S.bases[[1, 0, 2][i]]));
 
-  const canSteal = S.mode === 'bat' && (S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait');
+  const canSteal = S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace);
   $('mobileSteal').disabled = !canSteal;
   updatePitcherUI();
 }
@@ -550,7 +553,7 @@ function newRunner(t0, sp) {
   q.g.visible = true; q.g.position.copy(BP[0]); return q;
 }
 function setOcc(no) { occ = no; S.bases = [no[1] ? 1 : 0, no[2] ? 1 : 0, no[3] ? 1 : 0]; }
-function clearRun() { pool.forEach(q => { q.on = false; q.g.visible = false; }); setOcc([null, null, null, null]); }
+function clearRun() { batterRace = null; pool.forEach(q => { q.on = false; q.g.visible = false; }); setOcc([null, null, null, null]); }
 
 function advance(n, ex, t0) {
   const no = [null, null, null, null], sp = n >= 4 ? 28 : 16;
@@ -581,6 +584,54 @@ function changeSide() {
 }
 
 function addOut(n) { S.outs += n; S.balls = S.strikes = 0; if (S.outs >= 3) changeSide(); }
+
+function beginBatterRace(t0) {
+  const runner = newRunner(t0, 9.5);
+  runner.to = 1;
+  for (let base = 3; base >= 2; base--) {
+    const other = occ[base];
+    if (!other) continue;
+    const target = base + 1;
+    other.to = target; other.t0 = t0; other.sp = 16;
+    occ[base] = null;
+    if (target >= 4) addScore(1); else occ[target] = other;
+  }
+  setOcc(occ);
+  const play = hit.plan;
+  const raceTime = play.i / (60 * 1.7) + play.throwDuration / 1.7 + 0.2;
+  batterRace = { runner, callAt: t0 + raceTime * 1000 };
+  S.phase = 'running';
+}
+
+function sprintBatter() {
+  if (S.phase !== 'running' || !batterRace) return;
+  const runner = batterRace.runner;
+  runner.sp = Math.min(23, runner.sp + 1.6);
+  snd(500 + runner.sp * 25, 0.045, 'triangle', 0.13);
+}
+
+function settleBatterRace(now) {
+  if (!batterRace) return;
+  const race = batterRace, runner = race.runner;
+  const safe = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9;
+  batterRace = null;
+  runner.to = safe ? 1 : runner.b;
+  runner.b = safe ? 1 : runner.b;
+  runner.sp = 0;
+  if (safe) {
+    runner.g.position.copy(BP[1]);
+    occ[1] = runner; setOcc(occ); S.hits++;
+    flash('세이프!', '타자 주자가 송구보다 먼저 1루에 도착했습니다.');
+    snd(760, 0.16, 'sine', 0.22, 1120);
+  } else {
+    runner.out = true;
+    flash('아웃!', '송구가 먼저 1루에 도착했습니다.');
+    snd(210, 0.2, 'sawtooth', 0.2, 90);
+    addOut(1);
+  }
+  S.phase = 'result';
+  board();
+}
 
 /* ---------- 도루(Steal) 연타 기능 ---------- */
 function attemptSteal() {
@@ -778,8 +829,14 @@ function resolve(off) {
         const b = path[dd.i];
         const firstBaseTime = dd.i / 60 + Math.hypot(b.x - B1.x, b.z - B1.z) / 10.5;
         if (dd.air) r = 'flyout';
-        else r = firstBaseTime < 4.15 ? 'groundout' : 'single';
-        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout', throwTo: r === 'groundout' ? B1T.clone() : null };
+        else {
+          const cover = dd.f === F[0] ? F[1] : F[0];
+          const coverTime = Math.hypot(cover.home.x - B1.x, cover.home.z - B1.z) / (SPDF * 1.5 * 1.7);
+          const canCoverFirst = coverTime <= dd.i / 60 * 1.7 + 1.3 / 1.7;
+          r = firstBaseTime < 4.15 && canCoverFirst ? 'groundout' : 'single';
+        }
+        const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
+        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout', cover, throwTo: r === 'groundout' ? B1T.clone() : null, throwDuration: 1.3 };
       } else {
         // 포구 가능한 수비수가 없으면 플라이도 인플레이 안타로 처리합니다.
         if (r === 'groundout' || r === 'flyout') {
@@ -801,9 +858,14 @@ function resolve(off) {
   else if (r === 'double') advance(2, ex, tt);
   else if (r === 'single') advance(1, ex, tt);
   else if (r === 'groundout') {
-    dp = !!(occ[1] && S.outs <= 1 && hit && hit.plan && !hit.plan.air && hit.plan.i < 75 && Math.random() < 0.7);
-    if (dp) label = '병살타';
-    addOut(dp ? 2 : 1);
+    if (!occ[1] && hit && hit.plan && hit.plan.throwTo) {
+      beginBatterRace(tt);
+      label = '1루 승부!';
+    } else {
+      dp = !!(occ[1] && S.outs <= 1 && hit && hit.plan && !hit.plan.air && hit.plan.i < 75 && Math.random() < 0.7);
+      if (dp) label = '병살타';
+      addOut(dp ? 2 : 1);
+    }
   }
   else if (r === 'flyout') { addOut(1); }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
@@ -813,8 +875,11 @@ function resolve(off) {
   flash(label, parts.join(', ')); board();
   const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
-  const pathRun = hit ? hit.path.length / (60 * 1.7) * 1000 + 250 : 0;
-  timer = setTimeout(() => { if (S.h >= 2 * MAX_INN) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun));
+  const pathRun = !hit ? 0 : hit.plan
+    ? (hit.plan.i / 60 + (hit.plan.throwTo ? hit.plan.throwDuration + 0.2 : 0.2)) / 1.7 * 1000 + 150
+    : hit.path.length / (60 * 1.7) * 1000 + 250;
+  const raceWait = batterRace ? Math.max(0, batterRace.callAt - performance.now() + 150) : 0;
+  timer = setTimeout(() => { if (S.h >= 2 * MAX_INN) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun, raceWait));
 }
 
 function end() {
@@ -867,7 +932,11 @@ function tick(now) {
   } else {
     arm.rotation.set(deliveryT < 0.48 ? -0.1 - 2.45 * drive : -2.55 + 2.45 * recover, 0.12, deliveryT < 0.48 ? 0.18 - 0.48 * drive : -0.3 + 0.3 * recover);
   }
-  pit.rotation.z = deliveryActive && deliveryT < 0.48 ? (pitcher.form === 'under' ? 0.16 : -0.08) * drive : 0;
+  const pitcherStride = deliveryT < 0.48 ? drive : 1 - recover;
+  pit.position.set(0.12 * pitcherStride, 0.28 + 0.1 * pitcherStride, -18.4 + 0.62 * pitcherStride);
+  pit.rotation.x = deliveryActive ? -0.08 * pitcherStride : 0;
+  pit.rotation.y = Math.PI + (pitcher.form === 'side' ? 0.2 : 0.08) * pitcherStride;
+  pit.rotation.z = (pitcher.form === 'under' ? 0.22 : -0.13) * pitcherStride;
   
   // 하체 회전 후 배트가 따라 나오고, 타격 뒤에는 자연스럽게 피니시합니다.
   let yaw = -0.9;
@@ -881,12 +950,12 @@ function tick(now) {
     batterLegs[0].rotation.z = -0.28 * drive + 0.08 * finish;
     batterLegs[1].rotation.z = 0.22 * drive - 0.06 * finish;
     up.rotation.z = -0.12 * drive + 0.06 * finish;
-    bat.rotation.z = -Math.PI / 2 - 0.14 + (elapsed < 145 ? -0.08 * load : 0.34 * drive - 0.16 * finish);
+    bat.rotation.z = BAT_READY + (elapsed < 145 ? -0.30 * load : 0.95 * drive - 0.28 * finish);
   } else {
     bt.rotation.y *= 0.82; bt.rotation.z *= 0.82;
     batterLegs.forEach(leg => { leg.rotation.z *= 0.82; });
     up.rotation.z *= 0.82;
-    bat.rotation.z += (-Math.PI / 2 - 0.14 - bat.rotation.z) * 0.18;
+    bat.rotation.z += (BAT_READY - bat.rotation.z) * 0.18;
   }
   up.rotation.y = yaw;
   
@@ -902,6 +971,7 @@ function tick(now) {
     if (d <= st) { q.x = tg.x; q.z = tg.z; r.b++; } else { q.x += dx / d * st; q.z += dz / d * st; }
     r.g.rotation.y = Math.atan2(dx, dz);
   });
+  if (batterRace && (now >= batterRace.callAt || batterRace.runner.b >= 1)) settleBatterRace(now);
   
   // 수비 AI 이동
   if (hit && hit.path && hit.path.length > 0) {
@@ -916,7 +986,7 @@ function tick(now) {
         if (pl) {
           if (f === pl.f) {
             tg = hit.path[pl.i] || ballPos;
-          } else if (pl.out && !pl.air && f === F[0]) {
+          } else if (pl.out && !pl.air && f === pl.cover) {
             tg = B1;
           } else if (pl.dp && f === F[1]) {
             tg = B2P;
@@ -950,16 +1020,25 @@ function tick(now) {
   }
   let follow = false;
   if (hit && now >= hit.t) {
-    const k = (now - hit.t) / 1000 * 1.7, n = hit.path.length, i = Math.min(n - 1, Math.floor(k * 60));
-    ball.position.copy(hit.path[i]);
-    if (hit.plan && hit.plan.throwTo && i >= hit.plan.i) {
-      const throwProgress = C((k - hit.plan.i / 60) / 0.42, 0, 1);
-      ball.position.lerpVectors(hit.path[hit.plan.i], hit.plan.throwTo, throwProgress);
-      if (throwProgress > 0 && throwProgress < 1) vis = true;
+    const k = (now - hit.t) / 1000 * 1.7, n = hit.path.length;
+    const rawIndex = Math.min(n - 1, Math.floor(k * 60));
+    const plan = hit.plan;
+    if (plan && plan.throwTo) {
+      const catchK = plan.i / 60, throwProgress = C((k - catchK) / plan.throwDuration, 0, 1);
+      if (k < catchK) ball.position.copy(hit.path[rawIndex]);
+      else ball.position.lerpVectors(hit.path[plan.i], plan.throwTo, throwProgress);
+      vis = k < catchK + plan.throwDuration + 0.18;
+      follow = k < catchK + plan.throwDuration + 0.35;
+    } else if (plan) {
+      ball.position.copy(hit.path[Math.min(rawIndex, plan.i)]);
+      vis = k < plan.i / 60 + 0.14;
+      follow = k < plan.i / 60 + 0.28;
+    } else {
+      ball.position.copy(hit.path[rawIndex]);
+      vis = !(hit.hr && rawIndex >= n - 1) && rawIndex < n - 1;
+      follow = k < n / 60 + 0.5;
     }
     ball.rotation.x -= dt * 18;
-    vis = !(hit.hr && i >= n - 1) && (i < n - 1 || (hit.plan && hit.plan.throwTo && k < n / 60 + 0.42));
-    follow = k < n / 60 + 0.5;
   }
   ball.visible = vis; shd.visible = vis;
   if (vis) { shd.position.set(ball.position.x, 0.06, ball.position.z); shd.scale.setScalar(1 / (1 + ball.position.y * 0.12)); }
@@ -1027,7 +1106,7 @@ stage.addEventListener('pointermove', e => { if (S.mode === 'pitch' && S.phase =
 
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); b.blur(); } });
 $('mobileAct').addEventListener('click', () => act());
-$('mobileSteal').addEventListener('click', () => attemptSteal());
+$('mobileSteal').addEventListener('click', () => S.phase === 'running' ? sprintBatter() : attemptSteal());
 $('changePitcherBtn').addEventListener('click', openPitcherModal);
 $('closePitcherModal').addEventListener('click', () => { 
   $('pitcherModal').hidden = true; 
@@ -1042,7 +1121,7 @@ document.querySelectorAll('.stadium-choice').forEach(button => {
 
 addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) act(); }
-  else if (e.code === 'KeyS') { attemptSteal(); }
+  else if (e.code === 'KeyS') { S.phase === 'running' ? sprintBatter() : attemptSteal(); }
   else if (S.mode === 'pitch' && S.phase === 'aim') {
     if (e.key >= '1' && e.key <= '7') setPT(+e.key - 1);
     const m = { ArrowLeft: [-0.04, 0], ArrowRight: [0.04, 0], ArrowUp: [0, 0.04], ArrowDown: [0, -0.04] }[e.key];
@@ -1058,8 +1137,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
 
 
 
