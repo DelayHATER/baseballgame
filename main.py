@@ -226,6 +226,7 @@ body {
     <button id="mobileSteal" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold rounded-lg py-3 text-sm flex items-center justify-center gap-1 shadow-lg disabled:opacity-40" disabled>
       🏃 질주
     </button>
+    <button id="mobilePitchShift" class="col-span-3 stadium-choice py-3" style="display:none;touch-action:none">⚾ 투구 타이밍 · 누르고 있다가 떼기</button>
     <button id="buntBtn" class="col-span-3 stadium-choice py-2">번트 대기</button>
     <button id="pciBtn" class="col-span-3 stadium-choice py-2" hidden>🎯 조준 원: OFF (Shift)</button>
   </div>
@@ -877,6 +878,9 @@ function addScore(amount) {
 
 function board() {
   $('mobileAct').textContent = S.mode === 'pitch' ? '투구!' : S.phase === 'aim' ? '타격 준비' : S.phase === 'running' ? '주루 중…' : '스윙!';
+  const mobilePitchShift = $('mobilePitchShift');
+  mobilePitchShift.style.display = S.mode === 'pitch' && S.phase === 'aim' ? 'block' : 'none';
+  mobilePitchShift.classList.toggle('on', !!pitchCharge);
   $('mobileSteal').textContent = '🏃 질주';
   $('buntBtn').textContent = buntMode ? '번트 대기 중 · 취소' : '번트 대기';
   $('buntBtn').classList.toggle('on', buntMode);
@@ -1426,7 +1430,7 @@ function resolve(off) {
       if (dd) {
         if (wasHit) {
           const directness = C(1 - dd.distance / 24, 0, 1);
-          const catchChance = dd.air ? 0.14 + directness * 0.72 : 0.55 + directness * 0.43;
+          const catchChance = perfectPerfect ? 0.04 : dd.air ? 0.14 + directness * 0.72 : 0.55 + directness * 0.43;
           if (Math.random() < catchChance) r = dd.air ? 'flyout' : 'groundout';
         } else if (dd.air) r = 'flyout';
         else if (r === 'groundout' || r === 'bunt') {
@@ -1876,6 +1880,15 @@ stage.addEventListener('pointermove', e => {
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); b.blur(); } });
 $('mobileAct').addEventListener('click', () => act());
 $('mobileSteal').addEventListener('click', useSprintAction);
+$('mobilePitchShift').addEventListener('pointerdown', e => {
+  if (S.mode !== 'pitch' || S.phase !== 'aim') return;
+  e.preventDefault();
+  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+  beginPitchCharge();
+  e.currentTarget.classList.add('on');
+});
+$('mobilePitchShift').addEventListener('pointerup', e => { e.preventDefault(); releasePitchCharge(); e.currentTarget.classList.remove('on'); });
+$('mobilePitchShift').addEventListener('pointercancel', e => { releasePitchCharge(); e.currentTarget.classList.remove('on'); });
 $('buntBtn').addEventListener('click', toggleBunt);
 $('pciBtn').addEventListener('click', togglePCI);
 document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(button => button.addEventListener('click', () => setBattingMode(button.dataset.battingMode)));
