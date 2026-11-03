@@ -230,8 +230,8 @@ body {
     💻 PC: [스페이스바] 스윙/투구, [S]키 도루·주루 연타, [1~7] 구종 선택, [방향키] 코스 이동.
   </p>
   <section id="statsPanel" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-    <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-amber-400">타자 기록</b><div id="batterStats" class="text-slate-200 mt-1">AVG — · OBP — · SLG — · OPS —<br>득점 0 · 타점 0</div></div>
-    <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-sky-400">투수 기록</b><div id="pitcherGameStats" class="text-slate-200 mt-1">ERA — · K 0 · BB 0 · WHIP — · HBP 0</div></div>
+    <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-amber-400">내 타자 전체 기록</b><div id="batterStats" class="text-slate-200 mt-1">AVG — · OBP — · SLG — · OPS —<br>득점 0 · 타점 0</div></div>
+    <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-sky-400">내 투수 전체 기록</b><div id="pitcherGameStats" class="text-slate-200 mt-1">ERA — · K 0 · BB 0 · WHIP — · HBP 0</div></div>
   </section>
 </main>
 
@@ -1490,5 +1490,7 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
 
 
