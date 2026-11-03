@@ -90,6 +90,7 @@ body {
 #absCall { display:block; text-align:center; color:#fbbf24; min-height:14px; }
 .setting-row { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; }
 .setting-label { color:#cbd5e1; font-size:12px; font-weight:700; margin:0 3px; }
+.pitch-info { display:flex; align-items:center; justify-content:center; min-height:34px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#fbbf24; font-weight:800; font-size:13px; letter-spacing:.04em; }
 </style>
 </head>
 <body>
@@ -124,6 +125,8 @@ body {
       <button id="changePitcherBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded text-white border border-slate-500">교체</button>
     </div>
   </header>
+
+  <div id="pitchInfo" class="pitch-info">투구 후 구종과 구속이 표시됩니다</div>
 
   <!-- 3D 캔버스 영역 -->
   <div id="stage">
@@ -167,6 +170,11 @@ body {
         <button class="stadium-choice on" data-innings="3">3이닝</button>
         <button class="stadium-choice" data-innings="5">5이닝</button>
         <button class="stadium-choice" data-innings="9">9이닝</button>
+      </div>
+      <div class="setting-row" id="batterSideChoices">
+        <span class="setting-label">타석 방향</span>
+        <button class="stadium-choice on" data-batside="R">우타</button>
+        <button class="stadium-choice" data-batside="L">좌타</button>
       </div>
       <div class="flex gap-3 mt-2">
         <button id="go" class="btn-action px-6 py-3 text-base">공격(타자)부터 시작</button>
@@ -242,6 +250,8 @@ let pitcherStamina = 100;
 let selectedStadium = 0;
 let difficulty = 'normal';
 let maxInnings = 3;
+let batterSide = 'R';
+let defensiveThrow = null;
 const DIFFICULTIES = { easy: { label: '쉬움', pitchSpeed: 0.86, aiContact: 0.68, zoneRate: 0.52 }, normal: { label: '보통', pitchSpeed: 1, aiContact: 1, zoneRate: 0.6 }, hard: { label: '어려움', pitchSpeed: 1.14, aiContact: 1.24, zoneRate: 0.68 } };
 const emptyBatterStats = () => ({ pa: 0, ab: 0, hits: 0, walks: 0, hbp: 0, totalBases: 0, runs: 0, rbi: 0 });
 const emptyPitcherStats = () => ({ outs: 0, strikeouts: 0, walks: 0, hits: 0, hbp: 0, earnedRuns: 0 });
@@ -464,7 +474,7 @@ function resetField() {
 }
 const BP = [V3(0, 0, 0.6), V3(19.4, 0, -19.4), V3(0, 0, -38.8), V3(-19.4, 0, -19.4), V3(0, 0, 0.6)];
 const pool = [...Array(8)].map(() => {
-  const g = figure(0xf2b632, 0x7a5b00, 0, 0); g.visible = false;
+  const g = figure(0xf0f0f0, 0x1b2a5c, 0, 0); g.visible = false;
   return { g, on: false, b: 0, to: 0, t0: 0, sp: 16, out: false, h: 0 };
 });
 let occ = [null, null, null, null];
@@ -472,11 +482,16 @@ let occ = [null, null, null, null];
 const pit = figure(0xffffff, 0x1b2a5c, 0, -18.4); pit.position.y = 0.28; pit.rotation.y = Math.PI;
 const arm = new THREE.Group(); arm.position.set(0.24, 2, -18.4); scene.add(arm);
 mk(new THREE.CylinderGeometry(0.05, 0.045, 0.62, 8), mat(0xffffff), 0, -0.31, 0, arm);
+const catcher = figure(0x24385f, 0x1b2a5c, 0, 0.9);
+catcher.scale.set(0.92, 0.72, 0.92); catcher.position.y = 0.08;
+const catcherMask = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.32, 0.25, 0.12)), new THREE.LineBasicMaterial({ color: 0xd1d5db }));
+catcherMask.position.set(0, 1.45, 0.11); catcher.add(catcherMask);
+mk(new THREE.SphereGeometry(0.13, 10, 8), mat(0xdbeafe), 0.3, 0.96, 0.2, catcher);
 
-const bt = new THREE.Group(); scene.add(bt);
+const bt = new THREE.Group(); scene.add(bt); bt.scale.x = batterSide === 'L' ? -1 : 1;
 const batterLegs = [-0.1, 0.1].map((dx, i) => {
   const leg = new THREE.Group(); leg.position.set(-0.95 + dx, 0.82, 0.1); bt.add(leg);
-  mk(new THREE.CylinderGeometry(0.09, 0.08, 0.85, 8), mat(i ? 0x18294d : 0x24385f), 0, -0.39, 0, leg);
+  mk(new THREE.CylinderGeometry(0.09, 0.08, 0.85, 8), mat(0xdddddd), 0, -0.39, 0, leg);
   return leg;
 });
 const up = new THREE.Group(); up.position.set(-0.95, 0.85, 0.1); bt.add(up);
@@ -573,6 +588,12 @@ function updateABS(tx, ty, callText, wrong = false) {
     el.classList.toggle('challenge', i === cell && wrong);
   });
   $('absCall').textContent = callText;
+}
+
+function updatePitchInfo(pitchData) {
+  if (!pitchData) return;
+  const kind = TYPES[S.pt], pitcher = PITCHERS[currentPitcherIdx];
+  $('pitchInfo').textContent = `⚾ ${kind.name} · ${pitchData.speedKmh} km/h · ${pitcher.formName} · ${batterSide === 'R' ? '우타' : '좌타'}`;
 }
 
 function challengeABS() {
@@ -816,7 +837,11 @@ function attemptSteal() {
     activeStealRunner.t0 = now;
     activeStealRunner.sp = stealSpeedBonus;
 
-    flash("⚡ 도루 시작!", "연타로 주자 속도를 올리세요!");
+    const thrower = runnerIdx === 2 || Math.random() < 0.45 ? 'catcher' : 'pitcher';
+    const target = BP[targetBase].clone(); target.y = 1.25;
+    const throwFrom = thrower === 'catcher' ? V3(0.15, 1.45, 0.8) : V3(PITCHERS[currentPitcherIdx].releaseX, PITCHERS[currentPitcherIdx].releaseY, -17.8);
+    defensiveThrow = { from: throwFrom, to: target, start: now, duration: 850, thrower, targetBase };
+    flash('⚠️ 견제 송구!', `${thrower === 'catcher' ? '포수' : '투수'}가 ${targetBase}루로 던집니다.`);
     snd(500, 0.1, 'sine', 0.2);
     
     // 도루 시도에 투수가 견제할 수 있습니다.
@@ -888,10 +913,12 @@ function pitch() {
   const umpire = zoneCall(tx, ty);
   const fatigue = 1 - (100 - pitcherStamina) * 0.0035;
   const baseDur = R(curType.dur[0], curType.dur[1]) / (pData.speed * fatigue * profile.pitchSpeed);
+  const speedKmh = Math.round(18.4 / (baseDur / 1000) * 3.6);
   pitcherStamina = Math.max(0, pitcherStamina - 2.2);
   
   P = {
     tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable,
+    speedKmh,
     release: V3(pData.releaseX, pData.releaseY, -17.8),
     curve: (Math.random() < 0.4 ? R(-1, 1) : 0) * curType.c * pData.break,
     lift: R(0, 0.35) * curType.l,
@@ -915,6 +942,7 @@ function bp(p, o) {
 
 function ready() {
   resetField(); P = null; hit = null; sw = null; isStealing = false; activeStealRunner = null;
+  bt.visible = true; defensiveThrow = null;
   S.phase = 'aim'; flash(S.mode === 'pitch' ? '투구 준비' : '타격 준비', S.mode === 'bat' ? '상대 투수가 곧 투구합니다.' : '구종을 고르고 투구하세요.');
   board();
 }
@@ -928,11 +956,12 @@ function throwPitch() {
   const ty = C((aim.y + R(-e, e) - 0.82) / 0.5, -1.3, 1.3);
   const now = performance.now();
   const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue);
+  const speedKmh = Math.round(18.4 / (dur / 1000) * 3.6);
   pitcherStamina = Math.max(0, pitcherStamina - 2.2);
   const umpire = zoneCall(tx, ty);
   
   const me = {
-    tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable,
+    tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable, speedKmh,
     release: V3(pData.releaseX, pData.releaseY, -17.8),
     curve: T.c * pData.break * (Math.random() < 0.5 ? -1 : 1),
     lift: T.l, t0: now + WIND, dur, done: false
@@ -976,6 +1005,7 @@ const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [19,
 
 function resolve(off) {
   P.done = true; S.phase = 'result';
+  updatePitchInfo(P);
   let r, parts = [];
   if (off === null) {
     r = P.inZone ? 'strike' : 'ball';
@@ -999,6 +1029,7 @@ function resolve(off) {
   }
 
   if (SPD[r]) {
+    if (r !== 'foul') bt.visible = false;
     const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r], s = vh * R(0.9, 1.1);
     const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', chase: null };
@@ -1072,15 +1103,24 @@ function end() {
   overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', '나 ' + S.sc[0] + ' : ' + S.sc[1] + ' 상대\n안타 ' + S.hits + '개, 홈런 ' + S.hr + '개', '');
 }
 
+function setBatterSide(side) {
+  batterSide = side === 'L' ? 'L' : 'R';
+  bt.scale.x = batterSide === 'L' ? -1 : 1;
+  document.querySelectorAll('#batterSideChoices [data-batside]').forEach(button => button.classList.toggle('on', button.dataset.batside === batterSide));
+  if (P) updatePitchInfo(P);
+  else $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`;
+}
+
 function start(m) {
   clearTimeout(timer); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
   batterStats = emptyBatterStats();
   pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
   challengeCount = 2; pendingABSCall = null;
-  clearRun(); $('types').hidden = S.mode !== 'pitch';
+  clearRun(); bt.visible = true; defensiveThrow = null; $('types').hidden = S.mode !== 'pitch';
   board(); P = null; hit = null; sw = null; resetField();
   $('ov').hidden = true; S.phase = 'wait';
+  $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`;
   flash('플레이 볼', S.mode === 'bat' ? '초 공격' : '초 수비');
   pitcherStamina = 100;
   refreshPitchButtons(); updateStatsUI(); updatePitcherUI();
@@ -1125,28 +1165,29 @@ function tick(now) {
   pit.rotation.x = deliveryActive ? -0.08 * pitcherStride : 0;
   pit.rotation.y = Math.PI + (pitcher.form === 'side' ? 0.2 : 0.08) * pitcherStride;
   pit.rotation.z = (pitcher.form === 'under' ? 0.22 : -0.13) * pitcherStride;
+  catcher.rotation.set(0, Math.PI, 0);
+  if (defensiveThrow) {
+    const throwPose = C((now - defensiveThrow.start) / 240, 0, 1);
+    if (defensiveThrow.thrower === 'pitcher') arm.rotation.z = -1.2 * throwPose;
+    else {
+      catcher.rotation.y += (defensiveThrow.targetBase === 2 ? -0.28 : 0.28) * throwPose;
+      catcher.rotation.z = -0.12 * throwPose;
+    }
+  }
   
-  // 몸통은 짧게 회전하고, 스윙의 큰 움직임은 팔과 배트가 담당합니다.
+  // 몸통·팔·다리는 고정하고 배트만 휘둘러 타격합니다.
   if (sw) {
     const elapsed = now - sw.t;
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const load = smooth(elapsed / 145), drive = smooth((elapsed - 145) / 170), finish = smooth((elapsed - 315) / 420);
-    const armYaw = elapsed < 145 ? -0.08 * load : elapsed < 315 ? -0.08 + 1.48 * drive : 1.40 - 0.42 * finish;
-    bt.rotation.y = 0.02 + 0.14 * drive - 0.04 * finish;
-    bt.rotation.z = 0.01 + 0.05 * drive - 0.02 * finish;
-    batterLegs[0].rotation.z = -0.08 * drive + 0.025 * finish;
-    batterLegs[1].rotation.z = 0.07 * drive - 0.02 * finish;
-    up.rotation.y = 0.03 + 0.11 * drive - 0.03 * finish;
-    up.rotation.z = -0.035 * drive + 0.015 * finish;
-    swingArms.rotation.y = armYaw;
-    swingArms.rotation.z = elapsed < 145 ? -0.08 * load : -0.08 + 0.22 * drive - 0.08 * finish;
-    bat.rotation.z = BAT_READY + (elapsed < 145 ? -0.18 * load : 0.82 * drive - 0.22 * finish);
+    bat.rotation.y = elapsed < 145 ? -0.08 * load : elapsed < 315 ? -0.08 + 1.42 * drive : 1.34 - 0.4 * finish;
+    bat.rotation.z = BAT_READY + (elapsed < 145 ? -0.22 * load : 0.9 * drive - 0.25 * finish);
   } else {
-    bt.rotation.y *= 0.82; bt.rotation.z *= 0.82;
-    batterLegs.forEach(leg => { leg.rotation.z *= 0.82; });
-    up.rotation.y += (0.03 - up.rotation.y) * 0.18;
-    up.rotation.z *= 0.82;
-    swingArms.rotation.y *= 0.82; swingArms.rotation.z *= 0.82;
+    bt.rotation.set(0, 0, 0);
+    batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
+    up.rotation.set(0, 0.03, 0);
+    swingArms.rotation.set(0, 0, 0);
+    bat.rotation.y += (0 - bat.rotation.y) * 0.22;
     bat.rotation.z += (BAT_READY - bat.rotation.z) * 0.18;
   }
   
@@ -1230,6 +1271,14 @@ function tick(now) {
       follow = k < n / 60 + 0.5;
     }
     ball.rotation.x -= dt * 18;
+  }
+  if (defensiveThrow) {
+    const progress = C((now - defensiveThrow.start) / defensiveThrow.duration, 0, 1);
+    ball.position.lerpVectors(defensiveThrow.from, defensiveThrow.to, progress);
+    ball.position.y += Math.sin(progress * Math.PI) * 2.2;
+    ball.rotation.x -= dt * 28;
+    vis = progress < 1;
+    if (progress >= 1) defensiveThrow = null;
   }
   ball.visible = vis; shd.visible = vis;
   if (vis) { shd.position.set(ball.position.x, 0.06, ball.position.z); shd.scale.setScalar(1 / (1 + ball.position.y * 0.12)); }
@@ -1321,6 +1370,7 @@ document.querySelectorAll('#inningChoices [data-innings]').forEach(button => but
   document.querySelectorAll('#inningChoices [data-innings]').forEach(b => b.classList.toggle('on', b === button));
   drawScoreboard();
 }));
+document.querySelectorAll('#batterSideChoices [data-batside]').forEach(button => button.addEventListener('click', () => setBatterSide(button.dataset.batside)));
 $('challengeBtn').addEventListener('click', challengeABS);
 
 addEventListener('keydown', e => {
@@ -1342,8 +1392,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
 
 
 
