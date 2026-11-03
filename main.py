@@ -69,6 +69,7 @@ body {
 #timingTarget { position: absolute; left: 65%; width: 20%; height: 100%; background: rgba(34,197,94,0.6); border-left: 2px solid #22c55e; border-right: 2px solid #22c55e; }
 #timingPerfect { position: absolute; left: 72%; width: 6%; height: 100%; background: #fbbf24; }
 #timingCursor { position: absolute; left: 0%; width: 4px; height: 100%; background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+#timingHint { display:none; position:absolute; left:50%; bottom:38px; transform:translateX(-50%); z-index:15; padding:3px 8px; border-radius:6px; background:rgba(2,6,23,.88); color:#fbbf24; font-size:12px; font-weight:800; white-space:nowrap; pointer-events:none; }
 
 /* 오버레이 메뉴 */
 #ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 7px; padding: 12px; overflow-y:auto; background: rgba(6,13,23,0.92); backdrop-filter: blur(4px); z-index: 30; }
@@ -156,6 +157,7 @@ body {
       <div id="timingPerfect"></div>
       <div id="timingCursor"></div>
     </div>
+    <div id="timingHint"></div>
 
     <!-- 시작 및 결과 오버레이 -->
     <div id="ov">
@@ -215,15 +217,15 @@ body {
   <div class="grid grid-cols-3 gap-2 mt-1">
     <button id="mobileAct" class="col-span-2 btn-action py-3.5 text-lg font-title tracking-wider shadow-lg">스윙!</button>
     <button id="mobileSteal" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold rounded-lg py-3 text-sm flex items-center justify-center gap-1 shadow-lg disabled:opacity-40" disabled>
-      ⚡ 도루 연타!
+      🏃 질주
     </button>
     <button id="buntBtn" class="col-span-3 stadium-choice py-2">번트 대기</button>
   </div>
 
   <!-- 조작 안내 -->
   <p class="text-xs text-slate-400 text-center mt-1">
-    📱 모바일: 번트 대기 버튼으로 번트를 준비하고, 도루·주루·희생플라이 때 연타 버튼을 누르세요.<br>
-    💻 PC: [스페이스바] 스윙/투구, [B] 번트 준비, [S] 도루·주루 연타, [1~7] 구종 선택, [방향키] 코스 이동.
+    📱 모바일: 질주 버튼으로 도루·주루·태그업·호수비를 시도하세요.<br>
+    💻 PC: [스페이스바] 타격/일반 투구, [Shift] 홀드 후 타이밍에 놓기, [B] 번트, [S] 질주, [1~7] 구종 선택.
   </p>
   <section id="statsPanel" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
     <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-amber-400">내 타자 전체 기록</b><div id="batterStats" class="text-slate-200 mt-1">AVG — · OBP — · SLG — · OPS —<br>득점 0 · 타점 0</div></div>
@@ -256,14 +258,14 @@ if (!window.THREE) {
 
 /* ---------- 로스터 / 투수 스탯 데이터 ---------- */
 const PITCHERS = [
-  { id: 0, title: 'MONSTER', name: '류현진', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, pitches: [0,2,3,4], desc: '높은 릴리스의 오버핸드 에이스' },
-  { id: 1, title: '뱀직구', name: '임창용', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, pitches: [0,1,2,5], desc: '옆으로 휘두르는 사이드암 투수' },
-  { id: 2, title: 'KOREAN RIVERA', name: '고우석', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, pitches: [1,4,6], desc: '낮은 릴리스의 언더핸드 파이어볼러' },
-  { id: 3, title: 'THE ORAL', name: '김광현', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, pitches: [0,2,3,5], desc: '대각선 릴리스의 쓰리쿼터 투수' },
-  { id: 4, title: '고퀄스', name: '고영표', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, pitches: [0,1,4,6], desc: '낮은 사이드 릴리스와 날카로운 변화구' },
-  { id: 5, title: 'KOREAN SASAKI', name: '문동주', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, pitches: [0,1,2,3], desc: '빠른 오버핸드 직구 중심 투수' },
-  { id: 6, title: '17MVP', name: '양현종', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, pitches: [0,2,3,4,5], desc: '안정적인 제구와 폭넓은 구종' },
-  { id: 7, title: '궁내체고', name: '정대현', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, pitches: [1,4,5,6], desc: '바닥에서 솟아오르는 잠수함 투수' }
+  { id: 0, title: 'MONSTER', name: '류현진', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, endurance: 1.12, pitches: [0,2,3,4], desc: '높은 릴리스 · 구속 A · 변화 A · 제구 A · 체력 A' },
+  { id: 1, title: '뱀직구', name: '임창용', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, endurance: 0.94, pitches: [0,1,2,5], desc: '사이드암 · 구속 B · 변화 A · 제구 B · 체력 B' },
+  { id: 2, title: 'KOREAN RIVERA', name: '고우석', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, endurance: 0.86, pitches: [1,4,6], desc: '언더핸드 · 구속 S · 변화 B · 제구 C · 체력 C' },
+  { id: 3, title: 'THE ORAL', name: '김광현', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, endurance: 1.04, pitches: [0,2,3,5], desc: '쓰리쿼터 · 구속 B · 변화 A · 제구 A · 체력 B' },
+  { id: 4, title: '고퀄스', name: '고영표', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, endurance: 1.18, pitches: [0,1,4,6], desc: '사이드암 · 구속 B · 변화 S · 제구 S · 체력 S' },
+  { id: 5, title: 'KOREAN SASAKI', name: '문동주', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, endurance: 0.82, pitches: [0,1,2,3], desc: '오버핸드 · 구속 S · 변화 B · 제구 C · 체력 C' },
+  { id: 6, title: '17MVP', name: '양현종', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, endurance: 1.16, pitches: [0,2,3,4,5], desc: '쓰리쿼터 · 구속 B · 변화 A · 제구 A · 체력 S' },
+  { id: 7, title: '궁내체고', name: '정대현', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, endurance: 1.1, pitches: [1,4,5,6], desc: '잠수함 · 구속 B · 변화 S · 제구 B · 체력 A' }
 ];
 let currentPitcherIdx = 0;
 let pitcherStamina = 100;
@@ -297,6 +299,7 @@ const S = {
 };
 let P = null, sw = null, hit = null, timer = 0, ac = null, last = performance.now();
 let timingAnimId = null;
+let pitchCharge = null;
 
 // 도루 관련 변수
 let isStealing = false;
@@ -763,9 +766,10 @@ function deferForFielding(bases, t0, extraBase) {
   const play = { target, bases, t0, extraBase, impactAt, cueTimer: 0, settleTimer: 0 };
   pendingFieldingPlay = play;
   play.cueTimer = setTimeout(() => {
-    if (pendingFieldingPlay === play) flash('지금 클릭!', '수비수가 공에 닿는 순간 화면을 눌러 보세요!');
-  }, Math.max(0, impactAt - performance.now() - 240));
-  play.settleTimer = setTimeout(() => resolveFieldingPlay(false), Math.max(0, impactAt - performance.now() + 300));
+    if (pendingFieldingPlay === play) flash('질주 버튼!', '호수비 타이밍입니다. 여유 있게 버튼을 누르세요!');
+    board();
+  }, Math.max(0, impactAt - performance.now() - 850));
+  play.settleTimer = setTimeout(() => resolveFieldingPlay(false), Math.max(0, impactAt - performance.now() + 950));
   return true;
 }
 
@@ -796,8 +800,14 @@ function attemptHighlightCatch() {
   const play = pendingFieldingPlay;
   if (!play || S.mode !== 'pitch') return false;
   const delta = performance.now() - play.impactAt;
-  if (delta >= -240 && delta <= 300) { resolveFieldingPlay(true); return true; }
+  if (delta >= -850 && delta <= 950) { resolveFieldingPlay(true); return true; }
   return false;
+}
+
+function useSprintAction() {
+  if (pendingFieldingPlay && S.mode === 'pitch') { attemptHighlightCatch(); return; }
+  if (S.phase === 'running') sprintBatter();
+  else attemptSteal();
 }
 
 /* ---------- 소리 효과 ---------- */
@@ -835,7 +845,7 @@ function addScore(amount) {
 
 function board() {
   $('mobileAct').textContent = S.mode === 'pitch' ? '투구!' : S.phase === 'aim' ? '타격 준비' : S.phase === 'running' ? '주루 중…' : '스윙!';
-  $('mobileSteal').textContent = S.phase === 'running' && batterRace?.kind === 'sacfly' ? '🏠 연타로 홈 승부!' : S.phase === 'running' ? '🏃 연타로 1루 질주!' : '⚡ 도루 연타!';
+  $('mobileSteal').textContent = '🏃 질주';
   $('buntBtn').textContent = buntMode ? '번트 대기 중 · 취소' : '번트 대기';
   $('buntBtn').classList.toggle('on', buntMode);
   $('buntBtn').disabled = S.mode !== 'bat' || S.phase === 'running';
@@ -847,8 +857,8 @@ function board() {
   $('o').textContent = dots(S.outs, 2);
   document.querySelectorAll('.bs').forEach((e, i) => e.classList.toggle('on', !!S.bases[[1, 0, 2][i]]));
 
-  const canSteal = S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace);
-  $('mobileSteal').disabled = !canSteal;
+  const canSprint = (S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace)) || (S.mode === 'pitch' && !!pendingFieldingPlay);
+  $('mobileSteal').disabled = !canSprint;
   const challengeButton = $('challengeBtn');
   challengeButton.style.display = pendingABSCall ? 'block' : 'none';
   challengeButton.disabled = !pendingABSCall || challengeCount <= 0;
@@ -975,9 +985,9 @@ function beginSacFlyRace(t0) {
   const from = (play && hit.path[play.i] ? hit.path[play.i] : runner.g.position).clone();
   from.y = 1.35;
   const to = BP[0].clone(); to.y = 1.25;
-  const throwDuration = 1550;
+  const throwDuration = 2200;
   defensiveThrow = { from, to, start: catchAt, duration: throwDuration, thrower: 'fielder', targetBase: 0 };
-  runner.to = 4; runner.t0 = catchAt; runner.sp = 10;
+  runner.to = 4; runner.t0 = catchAt; runner.sp = runnerSpeed(runner, 10);
   batterRace = { kind: 'sacfly', runner, callAt: catchAt + throwDuration, hitterIndex: battingOrderIndex };
   S.phase = 'running';
   flash('희생플라이 승부!', '3루 주자가 홈으로 뜁니다. 송구 전에 연타하세요!');
@@ -1112,10 +1122,10 @@ function pitch() {
   
   const curType = TYPES[S.pt];
   const umpire = zoneCall(tx, ty);
-  const fatigue = 1 - (100 - pitcherStamina) * 0.0035;
+  const fatigue = 1 - (100 - pitcherStamina) * 0.0018;
   const baseDur = R(curType.dur[0], curType.dur[1]) / (pData.speed * fatigue * profile.pitchSpeed);
   const speedKmh = Math.round(18.4 / (baseDur / 1000) * 3.6);
-  pitcherStamina = Math.max(0, pitcherStamina - 2.2);
+  pitcherStamina = Math.max(0, pitcherStamina - 1.1 / pData.endurance);
   
   P = {
     tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable,
@@ -1143,28 +1153,64 @@ function bp(p, o) {
 
 function ready() {
   resetField(); P = null; hit = null; sw = null; isStealing = false; activeStealRunner = null;
+  pitchCharge = null;
   bt.visible = true; defensiveThrow = null;
   S.phase = 'aim'; flash(S.mode === 'pitch' ? '투구 준비' : '타격 준비', S.mode === 'bat' ? '상대 투수가 곧 투구합니다.' : '구종을 고르고 투구하세요.');
   board();
 }
 
-function throwPitch() {
+function beginPitchCharge() {
+  if (S.mode !== 'pitch' || S.phase !== 'aim' || pitchCharge) return;
+  const wrap = $('timingWrap'), cursor = $('timingCursor'), hint = $('timingHint');
+  pitchCharge = { start: performance.now(), duration: 1100 };
+  wrap.style.display = 'block'; wrap.dataset.kind = 'pitch';
+  hint.textContent = '구간 안에서 SHIFT를 놓으세요'; hint.style.display = 'block';
+  cancelAnimationFrame(timingAnimId);
+  const animateCharge = () => {
+    if (!pitchCharge) return;
+    const pct = C((performance.now() - pitchCharge.start) / pitchCharge.duration, 0, 1) * 100;
+    cursor.style.left = pct + '%';
+    timingAnimId = requestAnimationFrame(animateCharge);
+  };
+  timingAnimId = requestAnimationFrame(animateCharge);
+  flash('릴리스 타이밍!', 'SHIFT를 누르고 있다가 초록 구간에서 놓으세요.');
+}
+
+function cancelPitchCharge() {
+  if (!pitchCharge) return;
+  pitchCharge = null; cancelAnimationFrame(timingAnimId);
+  $('timingWrap').style.display = 'none'; $('timingHint').style.display = 'none';
+}
+
+function releasePitchCharge() {
+  if (!pitchCharge) return;
+  const charge = pitchCharge;
+  const pct = C((performance.now() - charge.start) / charge.duration, 0, 1) * 100;
+  const quality = C(1 - Math.abs(pct - 75) / 18, 0, 1);
+  pitchCharge = null; cancelAnimationFrame(timingAnimId);
+  $('timingWrap').style.display = 'none'; $('timingHint').style.display = 'none';
+  flash(quality >= 0.82 ? '완벽한 릴리스!' : quality >= 0.35 ? '좋은 릴리스!' : '릴리스 타이밍 놓침', quality > 0 ? '구속과 변화량 보너스가 적용됩니다.' : '다음 투구에서 타이밍을 맞춰 보세요.');
+  throwPitch(quality);
+}
+
+function throwPitch(releaseQuality = 0) {
   const pData = PITCHERS[currentPitcherIdx];
   const T = TYPES[S.pt];
-  const fatigue = 1 - (100 - pitcherStamina) * 0.0035;
-  const e = T.err * (pData.ctrl / 0.04) / fatigue;
+  const quality = C(releaseQuality, 0, 1);
+  const fatigue = 1 - (100 - pitcherStamina) * 0.0018;
+  const e = T.err * (pData.ctrl / 0.04) / fatigue * (1 - quality * 0.1);
   const tx = C((aim.x + R(-e, e)) / 0.4, -1.3, 1.3);
   const ty = C((aim.y + R(-e, e) - 0.82) / 0.5, -1.3, 1.3);
   const now = performance.now();
-  const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue);
+  const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue * (1 + quality * 0.1));
   const speedKmh = Math.round(18.4 / (dur / 1000) * 3.6);
-  pitcherStamina = Math.max(0, pitcherStamina - 2.2);
+  pitcherStamina = Math.max(0, pitcherStamina - 1.1 / pData.endurance);
   const umpire = zoneCall(tx, ty);
   
   const me = {
     tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable, speedKmh,
     release: V3(pData.releaseX, pData.releaseY, -17.8),
-    curve: T.c * pData.break * (Math.random() < 0.5 ? -1 : 1),
+    curve: (T.c * pData.break * (1 + quality * 0.55) + quality * 0.12) * (Math.random() < 0.5 ? -1 : 1),
     lift: T.l, t0: now + WIND, dur, done: false
   };
   me.arrive = me.t0 + me.dur; P = me; S.phase = 'pitch'; sw = null; hit = null;
@@ -1313,7 +1359,7 @@ function resolve(off) {
   else if (r === 'flyout') {
     const sacFlyChance = S.mode === 'bat' && S.outs < 2 && !!occ[3];
     recordBatterOut(); addOut(1);
-    if (sacFlyChance) { beginSacFlyRace(tt); label = '희생플라이 승부!'; parts.push('연타로 홈 송구보다 먼저 도착하세요'); }
+    if (sacFlyChance) { beginSacFlyRace(tt); label = '희생플라이 승부!'; parts.push('질주 버튼을 연타해 홈 송구보다 먼저 도착하세요'); }
   }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
   else if (r === 'strike' || r === 'whiff') { S.strikes++; if (S.strikes >= 3) { label = '삼진 아웃'; recordBatterOut(); if (S.mode === 'pitch') currentPitcherStats().strikeouts++; else opponentPitcherStats.strikeouts++; addOut(1); } }
@@ -1328,7 +1374,7 @@ function resolve(off) {
     ? (hit.plan.i / 60 + (hit.plan.throwTo ? hit.plan.throwDuration + 0.2 : 0.2)) / 1.7 * 1000 + 150
     : hit.path.length / (60 * 1.7) * 1000 + 250;
   const raceWait = batterRace ? Math.max(0, batterRace.callAt - performance.now() + 150) : 0;
-  const fieldingWait = pendingFieldingPlay ? Math.max(0, pendingFieldingPlay.impactAt + 320 - performance.now()) : 0;
+  const fieldingWait = pendingFieldingPlay ? Math.max(0, pendingFieldingPlay.impactAt + 1000 - performance.now()) : 0;
   timer = setTimeout(() => { if (pendingFieldingPlay) resolveFieldingPlay(false); if (S.h >= 2 * maxInnings) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun, raceWait, fieldingWait));
 }
 
@@ -1354,7 +1400,7 @@ function setBatterSide(side) {
 }
 
 function start(m) {
-  clearTimeout(timer); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
+  clearTimeout(timer); cancelPitchCharge(); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
   buntMode = false;
   teamNames = [
     $('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀',
@@ -1390,6 +1436,7 @@ function start(m) {
 }
 
 function act() {
+  if (pitchCharge) return;
   if (!ac) { try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
   if (ac && ac.state === 'suspended') ac.resume();
   if (S.phase === 'idle' || S.phase === 'over') return start(S.fm);
@@ -1567,8 +1614,9 @@ function tick(now) {
       follow = k < catchK + plan.throwDuration + 0.35;
     } else if (plan) {
       ball.position.copy(hit.path[Math.min(rawIndex, plan.i)]);
-      vis = k < plan.i / 60 + 0.14;
-      follow = k < plan.i / 60 + 0.28;
+      const catchWindow = hit.fieldOpportunity && pendingFieldingPlay ? 1.0 : 0.14;
+      vis = k < plan.i / 60 + catchWindow;
+      follow = k < plan.i / 60 + catchWindow + 0.14;
     } else {
       ball.position.copy(hit.path[rawIndex]);
       vis = !(hit.hr && rawIndex >= n - 1) && rawIndex < n - 1;
@@ -1655,7 +1703,7 @@ stage.addEventListener('pointermove', e => { if (S.mode === 'pitch' && S.phase =
 
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); b.blur(); } });
 $('mobileAct').addEventListener('click', () => act());
-$('mobileSteal').addEventListener('click', () => S.phase === 'running' ? sprintBatter() : attemptSteal());
+$('mobileSteal').addEventListener('click', useSprintAction);
 $('buntBtn').addEventListener('click', toggleBunt);
 $('changePitcherBtn').addEventListener('click', openPitcherModal);
 $('closePitcherModal').addEventListener('click', () => { 
@@ -1681,9 +1729,10 @@ document.querySelectorAll('#batterSideChoices [data-batside]').forEach(button =>
 $('challengeBtn').addEventListener('click', challengeABS);
 
 addEventListener('keydown', e => {
-  if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName))) return;
-  if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) act(); }
-  else if (e.code === 'KeyS') { S.phase === 'running' ? sprintBatter() : attemptSteal(); }
+  if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { e.preventDefault(); if (!e.repeat) beginPitchCharge(); }
+  else if (e.code === 'Space') { if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return; e.preventDefault(); if (!e.repeat) act(); }
+  else if (e.code === 'KeyS') useSprintAction();
   else if (e.code === 'KeyB' && !e.repeat) toggleBunt();
   else if (S.mode === 'pitch' && S.phase === 'aim') {
     if (e.key >= '1' && e.key <= '7') setPT(+e.key - 1);
@@ -1691,6 +1740,10 @@ addEventListener('keydown', e => {
     if (m) { e.preventDefault(); aim.x = C(aim.x + m[0], -0.5, 0.5); aim.y = C(aim.y + m[1], 0.3, 1.4); }
   }
 });
+addEventListener('keyup', e => {
+  if ((e.code === 'ShiftLeft' || e.code === 'ShiftRight') && pitchCharge) { e.preventDefault(); releasePitchCharge(); }
+});
+addEventListener('blur', cancelPitchCharge);
 
 updatePitcherUI();
 initABSGrid();
@@ -1701,7 +1754,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
 
 
