@@ -1241,12 +1241,14 @@ function resolve(off) {
     if (r !== 'hr' && r !== 'foul') {
       const possiblePlay = defend(path);
       // 안타/2루타로 판정된 타구는 포구 추정만으로 아웃으로 뒤집지 않습니다.
-      const dd = r === 'groundout' || r === 'flyout' || r === 'bunt' ? possiblePlay : null;
+      const wasHit = r === 'single' || r === 'double';
+      const dd = possiblePlay;
       if (dd) {
         const b = path[dd.i];
         const firstBaseTime = dd.i / 60 + Math.hypot(b.x - B1.x, b.z - B1.z) / 10.5;
         if (dd.air) {
-          r = 'flyout';
+          // 가까운 플라이를 야수가 실제로 잡도록 하되, 안타성 타구는 일부만 포구 처리합니다.
+          if (!wasHit || Math.random() < 0.14) r = 'flyout';
         } else if (r === 'groundout' || r === 'bunt') {
           const cover = dd.f === F[0] ? F[1] : F[0];
           const coverTime = Math.hypot(cover.home.x - B1.x, cover.home.z - B1.z) / (SPDF * 1.5 * 1.7);
@@ -1255,7 +1257,7 @@ function resolve(off) {
           if (r === 'groundout') r = !occ[1] || (firstBaseTime < 4.15 && canCoverFirst) ? 'groundout' : 'single';
         } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
-        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.3 };
+        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.3 };
       } else {
         // 포구 가능한 수비수가 없으면 플라이도 인플레이 안타로 처리합니다.
         if (r === 'groundout' || r === 'flyout') {
@@ -1633,7 +1635,8 @@ function openPitcherModal() {
 }
 
 stage.addEventListener('pointerdown', e => {
-  if (e.target.tagName === 'BUTTON') return;
+  // 시작 설정 오버레이 안의 입력·버튼 클릭은 경기 캔버스 조작으로 전달하지 않습니다.
+  if (e.target.closest('#ov, #gameHud, #absPanel, #timingWrap, button, input, select, textarea, label')) return;
   e.preventDefault();
   if (attemptHighlightCatch()) return;
   if (S.mode === 'pitch' && S.phase === 'aim') {
@@ -1671,6 +1674,7 @@ document.querySelectorAll('#batterSideChoices [data-batside]').forEach(button =>
 $('challengeBtn').addEventListener('click', challengeABS);
 
 addEventListener('keydown', e => {
+  if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName))) return;
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) act(); }
   else if (e.code === 'KeyS') { S.phase === 'running' ? sprintBatter() : attemptSteal(); }
   else if (e.code === 'KeyB' && !e.repeat) toggleBunt();
@@ -1690,6 +1694,5 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
 
