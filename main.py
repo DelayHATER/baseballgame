@@ -57,7 +57,7 @@ body {
 #msg { position: absolute; left: 0; right: 0; top: 25%; text-align: center; pointer-events: none; opacity: 0; z-index: 20; }
 #msg b { display: block; font-size: clamp(32px, 6vw, 56px); color: var(--lamp); text-shadow: 0 4px 12px rgba(0,0,0,0.9); font-family: 'Black Han Sans'; }
 #msg span { display: block; margin-top: 4px; font-size: 15px; text-shadow: 0 2px 6px rgba(0,0,0,0.9); color: #fff; font-weight: 600; }
-#msg.on { animation: pop 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+#msg.on { animation: pop 1.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
 @keyframes pop { 0%{opacity:0;transform:scale(0.7)} 15%{opacity:1;transform:scale(1.05)} 80%{opacity:1} 100%{opacity:0;transform:scale(1)} }
 
 /* 타격 타이밍 게이지 바 */
@@ -83,8 +83,8 @@ body {
 .stadium-choice { background:#172554; border:1px solid #475569; border-radius:8px; color:#e2e8f0; padding:8px 10px; font-weight:700; }
 .stadium-choice.on { background:#fbbf24; color:#0b1726; border-color:#fbbf24; }
 #absPanel { position:absolute; left:10px; bottom:10px; z-index:18; padding:8px; border-radius:8px; background:rgba(2,6,23,.88); border:1px solid rgba(226,232,240,.35); color:#f8fafc; font-size:10px; }
-#absGrid { display:grid; grid-template-columns:repeat(7,12px); gap:2px; margin:5px auto; }
-.abs-cell { width:12px; height:12px; border:1px solid rgba(255,255,255,.22); background:rgba(148,163,184,.12); }
+#absGrid { display:grid; grid-template-columns:repeat(7,14px); gap:2px; margin:5px auto; }
+.abs-cell { width:14px; height:14px; border:1px solid rgba(255,255,255,.22); background:rgba(148,163,184,.12); }
 .abs-cell.zone { background:rgba(34,197,94,.25); }
 .abs-cell.point { background:#fbbf24; box-shadow:0 0 7px #fbbf24; border-radius:50%; }
 .abs-cell.challenge { outline:1px solid #f87171; }
@@ -163,8 +163,8 @@ body {
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        경기 전에 구장을 고르세요. <br>
-        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다.
+        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
+        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다. 난이도와 이닝도 여기서 고를 수 있습니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
@@ -315,6 +315,7 @@ let pendingABSCall = null;
 
 /* ---------- 게임 상태 ---------- */
 const CONTACT = 64, V3 = (x,y,z) => new THREE.Vector3(x,y,z);
+const BASE_RUN_SUCCESS_SCALE = 0.6;
 const S = {
   phase: 'idle', mode: 'bat', pt: 0, fm: 'bat', h: 0,
   sc: [0, 0], outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0,
@@ -431,7 +432,7 @@ const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(ps, { depth: 0.04, bevelE
 plate.rotation.x = -Math.PI / 2; plate.position.set(0, 0.05, -0.1); scene.add(plate);
 
 const zone = new THREE.LineLoop(
-  new THREE.BufferGeometry().setFromPoints([V3(-0.4, 0.32, 0.1), V3(0.4, 0.32, 0.1), V3(0.4, 1.32, 0.1), V3(-0.4, 1.32, 0.1)]),
+  new THREE.BufferGeometry().setFromPoints([V3(-0.384, 0.34, 0.1), V3(0.384, 0.34, 0.1), V3(0.384, 1.30, 0.1), V3(-0.384, 1.30, 0.1)]),
   new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 })
 );
 scene.add(zone);
@@ -640,9 +641,9 @@ function refreshPitchButtons() {
 }
 
 function zoneCall(tx, ty) {
-  // ABS 7x7 그리드의 중앙 5x5 셀(±1.0)과 판정 존을 일치시킵니다.
-  const actual = Math.abs(tx) <= 1.0 && Math.abs(ty) <= 1.0;
-  const edge = Math.min(Math.abs(Math.abs(tx) - 1.0), Math.abs(Math.abs(ty) - 1.0));
+  // 이전 기본 존(±0.9)보다는 조금 넓고, 직전 존(±1.0)보다는 살짝 좁게 잡습니다.
+  const actual = Math.abs(tx) <= 0.96 && Math.abs(ty) <= 0.96;
+  const edge = Math.min(Math.abs(Math.abs(tx) - 0.96), Math.abs(Math.abs(ty) - 0.96));
   const challengeable = edge <= 0.12;
   const wrong = challengeable && Math.random() < 0.04;
   return { actual, called: wrong ? !actual : actual, challengeable, wrong };
@@ -770,7 +771,7 @@ function sim(p0, v0, dur) {
 function defend(path, buntPlay = false) {
   // path는 시뮬레이션 시간(초) 기준입니다. 렌더링 가속 배율을 다시 곱하면
   // 수비수가 외야 타구를 비현실적으로 멀리서 잡는 것으로 판정됩니다.
-  const speed = SPDF * 1.5 * (buntPlay ? 0.38 : 1);
+  const speed = SPDF * 1.5 * (buntPlay ? 0.23 : 1);
   for (let i = 12; i < Math.min(path.length, 210); i += 2) {
     const b = path[i], elapsed = i / 60;
     const air = b.y >= 1.1 && b.y <= 2.8;
@@ -781,7 +782,9 @@ function defend(path, buntPlay = false) {
     for (const f of F) {
       const q = f.g.position;
       const distance = Math.hypot(q.x - b.x, q.z - b.z);
-      if (distance <= speed * elapsed + (air ? 1.0 : 1.3) && (!best || distance < best.distance)) best = { i, f, air, distance };
+      const buntReaction = buntPlay ? 0.28 : 0;
+      const reach = buntPlay ? 0.78 : (air ? 1.0 : 1.3);
+      if (distance <= speed * Math.max(0, elapsed - buntReaction) + reach && (!best || distance < best.distance)) best = { i, f, air, distance };
     }
     if (best) return best;
   }
@@ -1098,7 +1101,8 @@ function settleBatterRace(now) {
     }
     finishBatterPA(); S.phase = 'result'; board(); return;
   }
-  const safe = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9;
+  const reachesFirst = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9;
+  const safe = reachesFirst && Math.random() < BASE_RUN_SUCCESS_SCALE;
   batterRace = null;
   runner.to = safe ? 1 : runner.b;
   runner.b = safe ? 1 : runner.b;
@@ -1125,6 +1129,7 @@ function settleBatterRace(now) {
 function finishStealRace(safe) {
   const race = stealRace;
   if (!race) return;
+  safe = safe && Math.random() < BASE_RUN_SUCCESS_SCALE;
   clearTimeout(stealTimer); stealTimer = 0; stealRace = null;
   const { runner, runnerIdx, targetBase } = race;
   if (safe) {
@@ -1197,8 +1202,8 @@ function pitch() {
   if (S.mode === 'bat') S.pt = pData.pitches[Math.floor(Math.random() * pData.pitches.length)];
   let tx = R(-0.5, 0.5), ty = R(-0.5, 0.5);
   if (!targetZone) {
-    if (Math.random() < 0.6) tx = (Math.random() < 0.5 ? -1 : 1) * R(1.02, 1.3);
-    else ty = (Math.random() < 0.5 ? -1 : 1) * R(1.02, 1.3);
+    if (Math.random() < 0.6) tx = (Math.random() < 0.5 ? -1 : 1) * R(0.98, 1.3);
+    else ty = (Math.random() < 0.5 ? -1 : 1) * R(0.98, 1.3);
   }
   
   const curType = TYPES[S.pt];
@@ -1349,13 +1354,13 @@ function resolve(off) {
   if (off === null) {
     r = P.inZone ? 'strike' : 'ball';
     const wrongCall = P.inZone !== P.actualInZone;
-    if (!P.actualInZone && Math.abs(P.tx) > 1.0 && Math.abs(P.ty) < 0.85 && Math.random() < 0.1) r = 'hbp';
+    if (!P.actualInZone && Math.abs(P.tx) > 0.96 && Math.abs(P.ty) < 0.85 && Math.random() < 0.1) r = 'hbp';
     updateABS(P.tx, P.ty, `${r === 'strike' ? '스트라이크' : r === 'hbp' ? '몸에 맞음' : '볼'} 판정`, wrongCall);
     const safeToChallenge = r === 'strike' ? S.strikes < 2 : r === 'ball' ? S.balls < 3 : false;
     pendingABSCall = P.challengeable && wrongCall && safeToChallenge
-      ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: performance.now() + 3000 }
+      ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: performance.now() + 4500 }
       : null;
-    if (pendingABSCall) setTimeout(() => { if (pendingABSCall && performance.now() >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 3050);
+    if (pendingABSCall) setTimeout(() => { if (pendingABSCall && performance.now() >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 4550);
     snd(220, 0.08, 'triangle', 0.3, 90);
   } else {
     pendingABSCall = null;
@@ -1736,7 +1741,7 @@ function tick(now) {
         if (tg) {
           const q = f.g.position, dx = tg.x - q.x, dz = tg.z - q.z, d = Math.hypot(dx, dz);
           if (d > 0.1) {
-            const buntSpeed = hit.bunt ? 0.38 : 1;
+            const buntSpeed = hit.bunt ? 0.23 : 1;
             const st = Math.min(SPDF * 1.5 * 1.7 * dt * buntSpeed, d);
             q.x += (dx / d) * st;
             q.z += (dz / d) * st;
@@ -1924,4 +1929,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
 
