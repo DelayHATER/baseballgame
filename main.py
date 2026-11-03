@@ -304,12 +304,17 @@ let isStealing = false;
 let stealSpeedBonus = 0;
 let activeStealRunner = null;
 let batterRace = null;
+let pendingFieldingPlay = null;
 
 /* ---------- Three.js 3D 그래픽 설정 ---------- */
 const stage = $('stage');
 const ren = new THREE.WebGLRenderer({ antialias: true });
 ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+ren.outputEncoding = THREE.sRGBEncoding;
+ren.toneMapping = THREE.ACESFilmicToneMapping;
+ren.toneMappingExposure = 1.12;
 ren.shadowMap.enabled = true;
+ren.shadowMap.type = THREE.PCFSoftShadowMap;
 stage.prepend(ren.domElement);
 
 const scene = new THREE.Scene();
@@ -338,7 +343,7 @@ const sun = new THREE.DirectionalLight(0xfff0d0, 1.2);
 sun.position.set(14, 30, 16);
 sun.target.position.set(0, 0, -8);
 sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 5, far: 80 });
 scene.add(sun, sun.target);
 
@@ -369,7 +374,10 @@ function flat(geo, m, x, y, z, rz) {
 
 const grass = tex(256, 256, (g, w, h) => {
   g.fillStyle = '#2b6e45'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#307a4c'; g.fillRect(0, 0, w, h / 2);
+  for (let y = 0; y < h; y += 32) {
+    g.fillStyle = y % 64 === 0 ? 'rgba(105,175,112,0.16)' : 'rgba(4,30,18,0.12)';
+    g.fillRect(0, y, w, 32);
+  }
   for (let i = 0; i < 2000; i++) {
     g.fillStyle = 'rgba(0,0,0,' + R(0.02, 0.07) + ')';
     g.fillRect(R(0, w), R(0, h), 2, 2);
@@ -422,11 +430,15 @@ const boardFace = mk(new THREE.BoxGeometry(23, 5.4, 0.12), new THREE.MeshBasicMa
 const scoreTexture = tex(512, 128, (g, w, h) => { g.fillStyle = '#0f766e'; g.fillRect(0, 0, w, h); });
 boardFace.material.map = scoreTexture; boardFace.material.color.setHex(0xffffff); boardFace.material.needsUpdate = true;
 const stadiumLights = [];
+const fieldWashLights = [];
 [-1, 1].forEach(side => [-1, 1].forEach(depth => {
   const tower = new THREE.Group(); tower.position.set(side * 112, 0, depth * 72); scene.add(tower);
   mk(new THREE.CylinderGeometry(0.35, 0.65, 27, 8), mat(0x64748b), 0, 13.5, 0, tower, false);
   const lamps = mk(new THREE.BoxGeometry(7, 2, 1), new THREE.MeshBasicMaterial({ color: 0xfff7d6 }), 0, 27.2, 0, tower, false);
   stadiumLights.push(lamps);
+  const wash = new THREE.PointLight(0xffe6b0, 1.15, 118, 1.65);
+  wash.position.set(side * 49, 27, depth * 35);
+  scene.add(wash); fieldWashLights.push(wash);
 }));
 const DOME_RADIUS = 112, DOME_Y = -42, DOME_Z = -25;
 const dome = new THREE.Mesh(new THREE.SphereGeometry(DOME_RADIUS, 64, 32, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x9bd6ef, transparent: true, opacity: 0.5, side: THREE.DoubleSide, depthWrite: false }));
@@ -464,6 +476,7 @@ function applyStadium(index) {
   dome.visible = stadium.dome;
   domeRibs.visible = stadium.dome;
   stadiumLights.forEach(light => light.material.color.setHex(index === 1 ? 0xdbeafe : 0xfff7d6));
+  fieldWashLights.forEach(light => { light.visible = index === 0 || index === 1; });
   document.querySelectorAll('#stadiumChoices .stadium-choice').forEach((button, i) => button.classList.toggle('on', i === index));
   drawScoreboard();
 }
@@ -732,6 +745,50 @@ function defend(path) {
     if (best) return best;
   }
   return null;
+}
+
+function deferForFielding(bases, t0, extraBase) {
+  const target = hit && hit.fieldOpportunity;
+  if (S.mode !== 'pitch' || !target) return false;
+  const impactAt = hit.t + target.i / 60 / 1.7 * 1000;
+  const play = { target, bases, t0, extraBase, impactAt, cueTimer: 0, settleTimer: 0 };
+  pendingFieldingPlay = play;
+  play.cueTimer = setTimeout(() => {
+    if (pendingFieldingPlay === play) flash('지금 클릭!', '수비수가 공에 닿는 순간 화면을 눌러 보세요!');
+  }, Math.max(0, impactAt - performance.now() - 240));
+  play.settleTimer = setTimeout(() => resolveFieldingPlay(false), Math.max(0, impactAt - performance.now() + 300));
+  return true;
+}
+
+function resolveFieldingPlay(saved) {
+  const play = pendingFieldingPlay;
+  if (!play) return;
+  pendingFieldingPlay = null;
+  clearTimeout(play.cueTimer); clearTimeout(play.settleTimer);
+  if (saved) {
+    const { f, i, air } = play.target;
+    hit.fieldOpportunity = null;
+    hit.plan = { f, i, air, out: false, cover: null, throwTo: null };
+    f.g.scale.y = 1.18;
+    setTimeout(() => { f.g.scale.y = 1; }, 520);
+    recordBatterOut(); addOut(1); finishBatterPA();
+    flash('호수비!', air ? '빠른 타구를 몸을 날려 잡았습니다!' : '내야 강습을 정확한 타이밍에 잡았습니다!');
+    snd(880, 0.18, 'sine', 0.25, 1450);
+  } else {
+    hit.fieldOpportunity = null; hit.plan = null;
+    hit.chase = play.target.f;
+    recordBatterHit(play.bases); advance(play.bases, play.extraBase, play.t0); finishBatterPA();
+    flash(play.bases === 2 ? '2루타!' : '안타!', '수비수가 잡지 못했습니다.');
+  }
+  board();
+}
+
+function attemptHighlightCatch() {
+  const play = pendingFieldingPlay;
+  if (!play || S.mode !== 'pitch') return false;
+  const delta = performance.now() - play.impactAt;
+  if (delta >= -240 && delta <= 300) { resolveFieldingPlay(true); return true; }
+  return false;
 }
 
 /* ---------- 소리 효과 ---------- */
@@ -1141,6 +1198,9 @@ function resolve(off) {
         hit.chase = outfieldOrder[0]?.f || F[4];
         hit.backup = outfieldOrder[1]?.f || F[5];
       }
+      if (S.mode === 'pitch' && (r === 'single' || r === 'double') && possiblePlay && possiblePlay.distance > 0.45 && Math.random() < 0.22) {
+        hit.fieldOpportunity = possiblePlay;
+      }
     }
   }
 
@@ -1148,8 +1208,14 @@ function resolve(off) {
   let label = LABEL[r], dp = false;
 
   if (r === 'hr') { recordBatterHit(4); if (S.mode === 'bat') S.hr++; advance(4, 0, tt); }
-  else if (r === 'double') { recordBatterHit(2); advance(2, ex, tt); }
-  else if (r === 'single') { recordBatterHit(1); advance(1, ex, tt); }
+  else if (r === 'double') {
+    if (deferForFielding(2, tt, ex)) label = '호수비 찬스!';
+    else { recordBatterHit(2); advance(2, ex, tt); }
+  }
+  else if (r === 'single') {
+    if (deferForFielding(1, tt, ex)) label = '호수비 찬스!';
+    else { recordBatterHit(1); advance(1, ex, tt); }
+  }
   else if (r === 'groundout') {
     if (!occ[1] && hit && hit.plan && hit.plan.throwTo) {
       beginBatterRace(tt);
@@ -1167,7 +1233,7 @@ function resolve(off) {
   else if (r === 'ball') { S.balls++; if (S.balls >= 4) { label = '볼넷'; if (S.mode === 'bat') { batterStats.pa++; batterStats.walks++; opponentPitcherStats.walks++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().walks++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.walks++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); } }
   else if (r === 'hbp') { label = '몸에 맞는 공'; if (S.mode === 'bat') { batterStats.pa++; batterStats.hbp++; opponentPitcherStats.hbp++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().hbp++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.hbp++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); }
 
-  if (!batterRace) finishBatterPA();
+  if (!batterRace && !pendingFieldingPlay) finishBatterPA();
   flash(label, parts.join(', ')); board();
   const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
@@ -1175,7 +1241,8 @@ function resolve(off) {
     ? (hit.plan.i / 60 + (hit.plan.throwTo ? hit.plan.throwDuration + 0.2 : 0.2)) / 1.7 * 1000 + 150
     : hit.path.length / (60 * 1.7) * 1000 + 250;
   const raceWait = batterRace ? Math.max(0, batterRace.callAt - performance.now() + 150) : 0;
-  timer = setTimeout(() => { if (S.h >= 2 * maxInnings) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun, raceWait));
+  const fieldingWait = pendingFieldingPlay ? Math.max(0, pendingFieldingPlay.impactAt + 320 - performance.now()) : 0;
+  timer = setTimeout(() => { if (pendingFieldingPlay) resolveFieldingPlay(false); if (S.h >= 2 * maxInnings) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun, raceWait, fieldingWait));
 }
 
 function end() {
@@ -1194,6 +1261,7 @@ function setBatterSide(side) {
 
 function start(m) {
   clearTimeout(timer); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
+  if (pendingFieldingPlay) { clearTimeout(pendingFieldingPlay.cueTimer); clearTimeout(pendingFieldingPlay.settleTimer); pendingFieldingPlay = null; }
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
   lineup = Array.from({ length: 9 }, (_, i) => {
     const entered = $(`lineupName${i}`)?.value?.trim();
@@ -1321,6 +1389,8 @@ function tick(now) {
           } else if (pl.dp && f === F[1]) {
             tg = B2P;
           }
+        } else if (hit.fieldOpportunity && hit.fieldOpportunity.f === f) {
+          tg = hit.path[hit.fieldOpportunity.i] || ballPos;
         } else if (hit.chase === f) {
           tg = ballPos;
         } else if (hit.backup === f) {
@@ -1438,6 +1508,7 @@ function openPitcherModal() {
 stage.addEventListener('pointerdown', e => {
   if (e.target.tagName === 'BUTTON') return;
   e.preventDefault();
+  if (attemptHighlightCatch()) return;
   if (S.mode === 'pitch' && S.phase === 'aim') {
     aimAt(e);
     if (!window.matchMedia('(pointer: coarse)').matches) act();
@@ -1490,7 +1561,5 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
 
 
