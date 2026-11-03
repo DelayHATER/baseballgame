@@ -213,6 +213,13 @@ body {
     <button class="pitch-btn" data-i="6">너클볼(7)</button>
   </div>
 
+  <div class="setting-row" id="battingModeChoices" style="display:none">
+    <span class="setting-label">타격 모드</span>
+    <button class="stadium-choice" data-batting-mode="power">💥 파워스윙</button>
+    <button class="stadium-choice" data-batting-mode="normal">⚖️ 노말</button>
+    <button class="stadium-choice" data-batting-mode="contact">🎯 컨택</button>
+  </div>
+
   <!-- 모바일 메인 컨트롤 액션 바 -->
   <div class="grid grid-cols-3 gap-2 mt-1">
     <button id="mobileAct" class="col-span-2 btn-action py-3.5 text-lg font-title tracking-wider shadow-lg">스윙!</button>
@@ -220,12 +227,13 @@ body {
       🏃 질주
     </button>
     <button id="buntBtn" class="col-span-3 stadium-choice py-2">번트 대기</button>
+    <button id="pciBtn" class="col-span-3 stadium-choice py-2" hidden>🎯 조준 원: OFF (Shift)</button>
   </div>
 
   <!-- 조작 안내 -->
   <p class="text-xs text-slate-400 text-center mt-1">
-    📱 모바일: 질주 버튼으로 도루·주루·태그업·호수비를 시도하세요.<br>
-    💻 PC: [스페이스바] 타격/일반 투구, [Shift] 홀드 후 타이밍에 놓기, [B] 번트, [S] 질주, [1~7] 구종 선택.
+    📱 모바일: 질주 버튼으로 도루·주루·태그업·호수비를, 조준 원 버튼으로 타격 조준을 하세요.<br>
+    💻 PC: [스페이스바] 타격/일반 투구, 타격 Shift 조준 원 켜기/끄기, 투구 Shift 홀드 후 릴리스, [B] 번트, [S] 질주.
   </p>
   <section id="statsPanel" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
     <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-amber-400">내 타자 전체 기록</b><div id="batterStats" class="text-slate-200 mt-1">AVG — · OBP — · SLG — · OPS —<br>득점 0 · 타점 0</div></div>
@@ -274,6 +282,10 @@ let teamNames = ['우리 팀', '상대 팀'];
 let difficulty = 'normal';
 let maxInnings = 3;
 let batterSide = 'R';
+let battingMode = 'normal';
+let pciEnabled = false;
+let pciInsideContact = false;
+let pciOutsideContact = false;
 let defensiveThrow = null;
 const DIFFICULTIES = { easy: { label: '쉬움', pitchSpeed: 0.86, aiContact: 0.68, zoneRate: 0.52 }, normal: { label: '보통', pitchSpeed: 1, aiContact: 1, zoneRate: 0.6 }, hard: { label: '어려움', pitchSpeed: 1.14, aiContact: 1.24, zoneRate: 0.68 } };
 const emptyBatterStats = () => ({ pa: 0, ab: 0, hits: 0, walks: 0, hbp: 0, totalBases: 0, runs: 0, rbi: 0 });
@@ -583,6 +595,9 @@ const TYPES = [
 const ret = new THREE.Mesh(new THREE.TorusGeometry(0.06, 0.008, 8, 24), new THREE.MeshBasicMaterial({ color: 0xf2b632, fog: false }));
 ret.visible = false; scene.add(ret);
 const rc = new THREE.Raycaster(), pln = new THREE.Plane(V3(0, 0, 1), -0.1), mv = new THREE.Vector2(), aim = V3(0, 0.82, 0.15);
+const pciCenter = aim.clone();
+const pciRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 8, 48), new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.92, depthTest: false }));
+pciRing.visible = false; pciRing.renderOrder = 10; scene.add(pciRing);
 
 function aimAt(e) {
   const r = stage.getBoundingClientRect();
@@ -849,6 +864,11 @@ function board() {
   $('buntBtn').textContent = buntMode ? '번트 대기 중 · 취소' : '번트 대기';
   $('buntBtn').classList.toggle('on', buntMode);
   $('buntBtn').disabled = S.mode !== 'bat' || S.phase === 'running';
+  $('battingModeChoices').style.display = S.mode === 'bat' ? 'flex' : 'none';
+  document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(button => button.classList.toggle('on', button.dataset.battingMode === battingMode));
+  $('pciBtn').hidden = S.mode !== 'bat';
+  $('pciBtn').disabled = S.phase === 'running';
+  $('pciBtn').textContent = `🎯 조준 원: ${pciEnabled ? 'ON' : 'OFF'} (Shift)`;
   $('inn').textContent = (Math.min(S.h >> 1, maxInnings - 1) + 1) + '회 ' + (S.h % 2 ? '말' : '초') + (S.mode === 'bat' ? ' 공격' : ' 수비');
   $('score').textContent = S.sc[0] + ' : ' + S.sc[1];
   $('scoreTeams').textContent = `${teamNames[0].slice(0, 8)} : ${teamNames[1].slice(0, 8)}`;
@@ -1111,6 +1131,7 @@ const WIND = 500;
 
 function pitch() {
   if (stealRace) { timer = setTimeout(pitch, 80); return; }
+  if (S.mode === 'bat') pciCenter.copy(aim);
   resetField(); const now = performance.now(), profile = DIFFICULTIES[difficulty], targetZone = Math.random() < profile.zoneRate;
   const pData = PITCHERS[currentPitcherIdx];
   if (S.mode === 'bat') S.pt = pData.pitches[Math.floor(Math.random() * pData.pitches.length)];
@@ -1271,13 +1292,32 @@ function resolve(off) {
     const hitter = S.mode === 'bat' ? lineup[battingOrderIndex] : null;
     const contactScale = hitter && !buntMode ? 1 - (hitter.contact - 3) * 0.035 : 1;
     const powerBonus = hitter && !buntMode ? (hitter.power - 3) * 2.4 : 0;
-    const q = Math.max(0, Math.abs(off) * contactScale - powerBonus) + (P.actualInZone ? 0 : 70);
+    pciInsideContact = false; pciOutsideContact = false;
+    let q = Math.max(0, Math.abs(off) * contactScale - powerBonus - (battingMode === 'power' && hitter ? 8 : 0)) + (P.actualInZone ? 0 : 70);
+    if (hitter && sw?.user && pciEnabled && !buntMode) {
+      const radius = 0.07 + ((hitter.contact - 1) / 4) * 0.11;
+      const dx = P.tx * 0.4 - pciCenter.x, dy = 0.82 + P.ty * 0.5 - pciCenter.y;
+      pciInsideContact = Math.hypot(dx, dy) <= radius;
+      pciOutsideContact = !pciInsideContact;
+      q *= pciInsideContact ? 0.76 : 1.15;
+    }
+    if (hitter && battingMode === 'contact' && !buntMode) q *= 0.78;
     if (buntMode && S.mode === 'bat' && sw?.user) {
       r = q < 82 ? 'bunt' : q < 140 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      r = off < -280 ? 'whiff' : q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      const weakContactWhiff = hitter ? (5 - hitter.contact) * 0.018 : 0;
+      const contactWhiff = battingMode === 'contact' ? weakContactWhiff * 0.15 : weakContactWhiff;
+      const modeWhiff = battingMode === 'power' ? 0.12 : battingMode === 'contact' ? 0.003 : 0.015;
+      const extraWhiff = hitter && sw?.user && Math.random() < contactWhiff + modeWhiff;
+      if (off < -280 || extraWhiff || (pciOutsideContact && Math.random() < 0.78)) r = 'whiff';
+      else r = q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      if (hitter && battingMode === 'contact' && !buntMode) {
+        if (r === 'hr') r = 'double';
+        else if (r === 'double' && Math.random() < 0.75) r = 'single';
+      }
       parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
+      if (pciEnabled && hitter) parts.push(pciInsideContact ? '조준 성공 · 타구 보너스' : pciOutsideContact ? '조준원 밖 · 헛스윙 위험' : '');
     }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
     else setTimeout(hitSound, CONTACT);
@@ -1286,7 +1326,9 @@ function resolve(off) {
   if (SPD[r]) {
     if (r !== 'foul') setTimeout(() => { bt.visible = false; }, 560);
     const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
-    const powerScale = S.mode === 'bat' && r !== 'bunt' ? 1 + (lineup[battingOrderIndex].power - 3) * 0.04 : 1;
+    const modePowerScale = S.mode !== 'bat' || r === 'bunt' ? 1 : battingMode === 'power' ? 1.18 : battingMode === 'contact' ? 0.78 : 1;
+    const pciPowerScale = S.mode === 'bat' && pciInsideContact ? 1.18 : S.mode === 'bat' && pciOutsideContact ? 0.82 : 1;
+    const powerScale = S.mode === 'bat' && r !== 'bunt' ? (1 + (lineup[battingOrderIndex].power - 3) * 0.04) * modePowerScale * pciPowerScale : 1;
     const s = vh * R(0.9, 1.1) * powerScale;
     const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1) * powerScale, -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', bunt: r === 'bunt', chase: null };
@@ -1391,6 +1433,22 @@ function toggleBunt() {
   flash(buntMode ? '번트 준비!' : '번트 취소', buntMode ? '다음 스윙에서 번트를 시도합니다.' : '일반 스윙으로 돌아갑니다.');
 }
 
+function setBattingMode(mode) {
+  if (!['power', 'normal', 'contact'].includes(mode)) return;
+  battingMode = mode;
+  board();
+  const labels = { power: '파워스윙', normal: '노말', contact: '컨택' };
+  flash(`${labels[mode]} 모드`, mode === 'power' ? '장타력이 올라가고 헛스윙 위험도 커집니다.' : mode === 'contact' ? '타이밍 판정이 넓어지고 타구 거리는 짧아집니다.' : '파워와 컨택의 균형을 맞춥니다.');
+}
+
+function togglePCI() {
+  if (S.mode !== 'bat' || S.phase === 'running' || S.phase === 'over') return;
+  pciEnabled = !pciEnabled;
+  if (S.phase === 'aim') pciCenter.copy(aim);
+  board();
+  flash(pciEnabled ? '조준 원 ON' : '조준 원 OFF', pciEnabled ? '마우스로 원을 옮긴 뒤, 원 안에 들어온 공을 노리세요.' : '조준 보정 없이 타격합니다.');
+}
+
 function setBatterSide(side) {
   batterSide = side === 'L' ? 'L' : 'R';
   bt.scale.x = batterSide === 'L' ? -1 : 1;
@@ -1401,7 +1459,7 @@ function setBatterSide(side) {
 
 function start(m) {
   clearTimeout(timer); cancelPitchCharge(); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
-  buntMode = false;
+  buntMode = false; battingMode = 'normal'; pciEnabled = false; pciInsideContact = pciOutsideContact = false;
   teamNames = [
     $('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀',
     $('opponentTeamName')?.value?.trim().slice(0, 12) || '상대 팀'
@@ -1593,7 +1651,13 @@ function tick(now) {
     }
   }
 
-  ret.visible = S.phase === 'aim'; ret.position.set(aim.x, aim.y, 0.15);
+  ret.visible = S.mode === 'pitch' && S.phase === 'aim'; ret.position.set(aim.x, aim.y, 0.15);
+  const activeHitter = lineup[battingOrderIndex];
+  const pciRadius = 0.07 + (((activeHitter?.contact || 3) - 1) / 4) * 0.11;
+  const pciAim = S.phase === 'aim' ? aim : pciCenter;
+  pciRing.visible = S.mode === 'bat' && pciEnabled && (S.phase === 'aim' || S.phase === 'pitch');
+  pciRing.position.set(pciAim.x, pciAim.y, 0.15);
+  pciRing.scale.set(pciRadius, pciRadius * 1.12, 1);
   
   // 공 위치 갱신
   let vis = false;
@@ -1697,14 +1761,17 @@ stage.addEventListener('pointerdown', e => {
   if (S.mode === 'pitch' && S.phase === 'aim') {
     aimAt(e);
     if (!window.matchMedia('(pointer: coarse)').matches) act();
-  } else act();
+  } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e);
+  else act();
 });
-stage.addEventListener('pointermove', e => { if (S.mode === 'pitch' && S.phase === 'aim') aimAt(e); });
+stage.addEventListener('pointermove', e => { if ((S.mode === 'pitch' || (S.mode === 'bat' && pciEnabled)) && S.phase === 'aim') aimAt(e); });
 
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); b.blur(); } });
 $('mobileAct').addEventListener('click', () => act());
 $('mobileSteal').addEventListener('click', useSprintAction);
 $('buntBtn').addEventListener('click', toggleBunt);
+$('pciBtn').addEventListener('click', togglePCI);
+document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(button => button.addEventListener('click', () => setBattingMode(button.dataset.battingMode)));
 $('changePitcherBtn').addEventListener('click', openPitcherModal);
 $('closePitcherModal').addEventListener('click', () => { 
   $('pitcherModal').hidden = true; 
@@ -1730,7 +1797,7 @@ $('challengeBtn').addEventListener('click', challengeABS);
 
 addEventListener('keydown', e => {
   if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
-  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { e.preventDefault(); if (!e.repeat) beginPitchCharge(); }
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { e.preventDefault(); if (!e.repeat) { if (S.mode === 'bat') togglePCI(); else beginPitchCharge(); } }
   else if (e.code === 'Space') { if (e.target instanceof HTMLElement && e.target.tagName === 'BUTTON') return; e.preventDefault(); if (!e.repeat) act(); }
   else if (e.code === 'KeyS') useSprintAction();
   else if (e.code === 'KeyB' && !e.repeat) toggleBunt();
@@ -1754,6 +1821,8 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
 
 
 
