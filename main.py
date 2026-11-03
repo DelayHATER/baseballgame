@@ -1,4 +1,4 @@
-# """BaseBall 3D Pro — Streamlit 배포용 단일 파일."""
+# BaseBall 3D Pro - Streamlit app
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -200,6 +200,7 @@ const PITCHERS = [
   { id: 3, name: 'CRAFT 김광현', speed: 1.0, break: 1.3, ctrl: 0.035, stam: 'A', desc: '슬라이더와 커브가 일품인 명품 투수' }
 ];
 let currentPitcherIdx = 0;
+let pitcherStamina = 100;
 
 /* ---------- 게임 상태 ---------- */
 const MAX_INN = 3, CONTACT = 64, V3 = (x,y,z) => new THREE.Vector3(x,y,z);
@@ -411,8 +412,8 @@ function sim(p0, v0, dur) {
   const a = [], p = p0.clone(), v = v0.clone();
   for (let i = 0; i < dur * 60; i++) {
     v.y -= 14 / 60; p.addScaledVector(v, 1 / 60);
-    if (p.y < 0.13) { p.y = 0.13; if (v.y < 0) { v.y *= -0.35; if (v.y < 1.5) v.y = 0; } }
-    if (p.y <= 0.14) { v.x *= 1 - 1.3 / 60; v.z *= 1 - 1.3 / 60; }
+    if (p.y < 0.13) { p.y = 0.13; if (v.y < 0) v.y = Math.abs(v.y) > 2.2 ? -v.y * 0.42 : 0; }
+    if (p.y <= 0.14) { v.x *= 1 - 0.10 / 60; v.z *= 1 - 0.10 / 60; }
     a.push(p.clone());
   }
   return a;
@@ -442,6 +443,12 @@ function snd(f, d, t, v, f2) {
   } catch(e){}
 }
 
+function hitSound() {
+  // 짧은 타구음에 저음 임팩트를 겹쳐 배트에 맞는 느낌을 냅니다.
+  snd(145, 0.16, 'triangle', 0.28, 52);
+  setTimeout(() => snd(1250, 0.055, 'triangle', 0.12, 420), 8);
+}
+
 /* ---------- 로직 및 UI 업데이트 ---------- */
 const dots = (n, m) => '●'.repeat(n) + '○'.repeat(m - n);
 
@@ -464,6 +471,7 @@ function board() {
 
   const canSteal = S.mode === 'bat' && (S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait');
   $('mobileSteal').disabled = !canSteal;
+  updatePitcherUI();
 }
 
 function flash(t, sub) {
@@ -537,9 +545,27 @@ function attemptSteal() {
     flash("⚡ 도루 시작!", "연타로 주자 속도를 올리세요!");
     snd(500, 0.1, 'sine', 0.2);
     
-    // 도루 처리 타이머 설정 (투구 대기 시간 연장 활용)
+    // 도루 시도에 투수가 견제할 수 있습니다.
+    const pickedOff = Math.random() < 0.27;
     setTimeout(() => {
       if (!isStealing || !activeStealRunner) return;
+
+      if (pickedOff) {
+        flash('견제 아웃!', '투수가 도루를 간파했습니다.');
+        activeStealRunner.g.position.copy(BP[runnerIdx]);
+        activeStealRunner.b = runnerIdx;
+        activeStealRunner.to = runnerIdx;
+        activeStealRunner.out = true;
+        activeStealRunner.h = 0;
+        occ[runnerIdx] = null;
+        setOcc(occ);
+        isStealing = false;
+        activeStealRunner = null;
+        addOut(1);
+        snd(180, 0.22, 'sawtooth', 0.24, 75);
+        board();
+        return;
+      }
       
       // 최종 속도가 23 이상이면 도루 성공
       if (stealSpeedBonus >= 23) {
@@ -571,11 +597,12 @@ function attemptSteal() {
   board();
 }
 
-/* ---------- 투구 알고리즘 (투수 대기 시간 3.5초 늘림) ---------- */
+/* ---------- 투구 알고리즘 ---------- */
 const REL = V3(0.24, 1.92, -17.8), WIND = 500;
 
 function pitch() {
   resetField(); const now = performance.now(), inZone = Math.random() < 0.6;
+  if (S.mode === 'bat') S.pt = Math.floor(Math.random() * TYPES.length);
   let tx = R(-0.5, 0.5), ty = R(-0.5, 0.5);
   if (!inZone) {
     if (Math.random() < 0.6) tx = (Math.random() < 0.5 ? -1 : 1) * R(0.75, 1.1);
@@ -584,7 +611,9 @@ function pitch() {
   
   const pData = PITCHERS[currentPitcherIdx];
   const curType = TYPES[S.pt];
-  const baseDur = R(curType.dur[0], curType.dur[1]) / pData.speed;
+  const fatigue = 1 - (100 - pitcherStamina) * 0.0035;
+  const baseDur = R(curType.dur[0], curType.dur[1]) / (pData.speed * fatigue);
+  pitcherStamina = Math.max(0, pitcherStamina - 2.2);
   
   P = {
     tx, ty, inZone,
@@ -615,11 +644,13 @@ function ready() {
 function throwPitch() {
   const pData = PITCHERS[currentPitcherIdx];
   const T = TYPES[S.pt];
-  const e = T.err * (pData.ctrl / 0.04);
+  const fatigue = 1 - (100 - pitcherStamina) * 0.0035;
+  const e = T.err * (pData.ctrl / 0.04) / fatigue;
   const tx = C((aim.x + R(-e, e)) / 0.4, -1.3, 1.3);
   const ty = C((aim.y + R(-e, e) - 0.82) / 0.5, -1.3, 1.3);
   const now = performance.now();
-  const dur = R(T.dur[0], T.dur[1]) / pData.speed;
+  const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue);
+  pitcherStamina = Math.max(0, pitcherStamina - 2.2);
   
   const me = {
     tx, ty, inZone: Math.abs(tx) < 0.55 && Math.abs(ty) < 0.52,
@@ -673,12 +704,12 @@ function resolve(off) {
     r = off < -280 ? 'whiff' : q < 30 ? 'hr' : q < 62 ? 'double' : q < 100 ? 'single' : q < 145 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 210 ? 'foul' : 'whiff';
     parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
-    else setTimeout(() => snd(900, 0.09, 'square', 0.22, 120), CONTACT);
+    else setTimeout(hitSound, CONTACT);
   }
 
   if (SPD[r]) {
     const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r], s = vh * R(0.9, 1.1);
-    const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 3.2 : 1.6);
+    const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', chase: null };
     if (r !== 'hr' && r !== 'foul') {
       const dd = defend(path);
@@ -711,8 +742,7 @@ function resolve(off) {
   flash(label, parts.join(', ')); board();
   const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
-  // 투구 대기 시간 3.5초 지연 적용 (도루 준비시간 확보)
-  timer = setTimeout(() => { if (S.h >= 2 * MAX_INN) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 6500); } }, Math.max(r === 'hr' ? 6500 : S.h !== h0 ? 6500 : 6500, run + 1000));
+  timer = setTimeout(() => { if (S.h >= 2 * MAX_INN) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 3000); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 3000 : 2600, run + 700));
 }
 
 function end() {
@@ -728,7 +758,8 @@ function start(m) {
   board(); P = null; hit = null; sw = null; resetField();
   $('ov').hidden = true; S.phase = 'wait';
   flash('플레이 볼', S.mode === 'bat' ? '초 공격' : '초 수비');
-  timer = setTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 6500); } }, 1200);
+  pitcherStamina = 100;
+  timer = setTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 3000); } }, 900);
 }
 
 function act() {
@@ -753,9 +784,20 @@ function tick(now) {
   }
   arm.rotation.x = th;
   
-  // 타자 스윙
+  // 하체 회전 후 배트가 따라 나오고, 타격 뒤에는 자연스럽게 피니시합니다.
   let yaw = -0.9;
-  if (sw) { const dt2 = now - sw.t; yaw = dt2 < 170 ? -0.9 + 2.4 * dt2 / 170 : dt2 < 500 ? 1.5 : 1.5 - 2.4 * C((dt2 - 500) / 300, 0, 1); }
+  if (sw) {
+    const elapsed = now - sw.t;
+    const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
+    const load = smooth(elapsed / 145), drive = smooth((elapsed - 145) / 170), finish = smooth((elapsed - 315) / 420);
+    yaw = elapsed < 145 ? -0.9 - 0.18 * load : elapsed < 315 ? -1.08 + 2.55 * drive : 1.47 - 0.45 * finish;
+    bt.rotation.y = 0.12 + 0.64 * drive - 0.18 * finish;
+    bt.rotation.z = 0.06 + 0.20 * drive - 0.10 * finish;
+    bat.rotation.z = -Math.PI / 2 - 0.14 + (elapsed < 145 ? -0.08 * load : 0.34 * drive - 0.16 * finish);
+  } else {
+    bt.rotation.y *= 0.82; bt.rotation.z *= 0.82;
+    bat.rotation.z += (-Math.PI / 2 - 0.14 - bat.rotation.z) * 0.18;
+  }
   up.rotation.y = yaw;
   
   // 주자 위치 갱신
@@ -822,8 +864,10 @@ function tick(now) {
       const throwProgress = C((k - hit.plan.i / 60) / 0.42, 0, 1);
       ball.position.lerpVectors(hit.path[hit.plan.i], hit.plan.throwTo, throwProgress);
       if (throwProgress > 0 && throwProgress < 1) vis = true;
-    }    ball.rotation.x -= dt * 18;
-    vis = !(hit.hr && i >= n - 1); follow = k < n / 60 + 0.5;
+    }
+    ball.rotation.x -= dt * 18;
+    vis = !(hit.hr && i >= n - 1) && (i < n - 1 || (hit.plan && hit.plan.throwTo && k < n / 60 + 0.42));
+    follow = k < n / 60 + 0.5;
   }
   ball.visible = vis; shd.visible = vis;
   if (vis) { shd.position.set(ball.position.x, 0.06, ball.position.z); shd.scale.setScalar(1 / (1 + ball.position.y * 0.12)); }
@@ -843,7 +887,7 @@ function tick(now) {
 function updatePitcherUI() {
   const p = PITCHERS[currentPitcherIdx];
   $('pitcherName').textContent = p.name;
-  $('pitcherStats').textContent = `구속:${Math.round(p.speed*140)}km | 변화:${p.break > 1.1 ? '상' : '중'}`;
+  $('pitcherStats').textContent = `구속:${Math.round(p.speed*140)}km | 체력:${Math.round(pitcherStamina)}%`;
 }
 
 function openPitcherModal() {
@@ -866,7 +910,8 @@ function openPitcherModal() {
       <div class="text-xs text-slate-400">${p.desc}</div>
     `;
     btn.onclick = () => { 
-      currentPitcherIdx = idx; 
+      currentPitcherIdx = idx;
+      pitcherStamina = 100;
       updatePitcherUI(); 
       $('pitcherModal').hidden = true; 
       $('pitcherModal').style.display = 'none';
@@ -918,6 +963,7 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
 
 
 
