@@ -407,12 +407,13 @@ const up = new THREE.Group(); up.position.set(-0.95, 0.85, 0.1); bt.add(up);
 mk(new THREE.CylinderGeometry(0.2, 0.17, 0.62, 10), mat(0xf0f0f0), 0, 0.3, 0, up);
 mk(new THREE.SphereGeometry(0.13, 12, 10), mat(0xe8c9a0), 0, 0.77, 0, up);
 mk(new THREE.SphereGeometry(0.15, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(0x1b2a5c), 0, 0.79, 0, up);
+const swingArms = new THREE.Group(); swingArms.position.set(0, 0.375, 0); up.add(swingArms);
 [-0.06, 0.06].forEach(dz => {
-  const a = mk(new THREE.CylinderGeometry(0.045, 0.04, 0.42, 8), mat(0xf0f0f0), 0.22, 0.375, dz, up);
+  const a = mk(new THREE.CylinderGeometry(0.045, 0.04, 0.42, 8), mat(0xf0f0f0), 0.22, 0, dz, swingArms);
   a.rotation.z = -2.54;
 });
 const BAT_READY = -0.72;
-const bat = new THREE.Group(); bat.position.set(0.28, 0.35, -0.08); bat.rotation.z = BAT_READY; up.add(bat);
+const bat = new THREE.Group(); bat.position.set(0.28, -0.025, -0.08); bat.rotation.z = BAT_READY; swingArms.add(bat);
 mk(new THREE.CylinderGeometry(0.05, 0.02, 1, 10), mat(0xc99a5b, 0.6), 0, 0.5, 0, bat);
 
 /* 야구공 */
@@ -473,17 +474,20 @@ function sim(p0, v0, dur) {
 }
 
 function defend(path) {
-  const speed = SPDF * 1.5 * 1.7;
-  for (let i = 12; i < path.length; i += 2) {
+  // path는 시뮬레이션 시간(초) 기준입니다. 렌더링 가속 배율을 다시 곱하면
+  // 수비수가 외야 타구를 비현실적으로 멀리서 잡는 것으로 판정됩니다.
+  const speed = SPDF * 1.5;
+  for (let i = 12; i < Math.min(path.length, 210); i += 2) {
     const b = path[i], elapsed = i / 60;
-    const air = b.y >= 0.9 && b.y <= 3.8;
-    const ground = b.y <= 0.25;
+    const air = b.y >= 1.1 && b.y <= 2.8;
+    // 땅볼은 내야에서 초기에 수비수와 맞닿을 때만 처리합니다.
+    const ground = b.y <= 0.25 && i <= 78 && Math.hypot(b.x, b.z) <= 31;
     if (!air && !ground) continue;
     let best = null;
     for (const f of F) {
       const q = f.g.position;
       const distance = Math.hypot(q.x - b.x, q.z - b.z);
-      if (distance <= speed * elapsed + (air ? 1.1 : 0.65) && (!best || distance < best.distance)) best = { i, f, air, distance };
+      if (distance <= speed * elapsed + (air ? 0.9 : 0.55) && (!best || distance < best.distance)) best = { i, f, air, distance };
     }
     if (best) return best;
   }
@@ -824,17 +828,20 @@ function resolve(off) {
     const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', chase: null };
     if (r !== 'hr' && r !== 'foul') {
-      const dd = defend(path);
+      const possiblePlay = defend(path);
+      // 안타/2루타로 판정된 타구는 포구 추정만으로 아웃으로 뒤집지 않습니다.
+      const dd = r === 'groundout' || r === 'flyout' ? possiblePlay : null;
       if (dd) {
         const b = path[dd.i];
         const firstBaseTime = dd.i / 60 + Math.hypot(b.x - B1.x, b.z - B1.z) / 10.5;
-        if (dd.air) r = 'flyout';
-        else {
+        if (dd.air) {
+          r = 'flyout';
+        } else if (r === 'groundout') {
           const cover = dd.f === F[0] ? F[1] : F[0];
           const coverTime = Math.hypot(cover.home.x - B1.x, cover.home.z - B1.z) / (SPDF * 1.5 * 1.7);
-          const canCoverFirst = coverTime <= dd.i / 60 * 1.7 + 1.3 / 1.7;
+          const canCoverFirst = coverTime <= dd.i / 60 / 1.7 + 1.3 / 1.7;
           r = firstBaseTime < 4.15 && canCoverFirst ? 'groundout' : 'single';
-        }
+        } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
         hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout', cover, throwTo: r === 'groundout' ? B1T.clone() : null, throwDuration: 1.3 };
       } else {
