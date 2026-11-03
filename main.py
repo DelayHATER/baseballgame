@@ -100,47 +100,30 @@ body {
 .team-name-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:min(100%,440px); }
 .team-name-inputs label { color:#cbd5e1; font-size:11px; text-align:left; }
 .team-name-inputs input { display:block; width:100%; margin-top:3px; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#fff; padding:6px; font-size:12px; }
+#gameHud { position:absolute; right:8px; bottom:48px; z-index:19; width:min(260px,74%); display:flex; flex-direction:column; gap:5px; padding:7px; border:1px solid rgba(226,232,240,.35); border-radius:9px; background:rgba(2,6,23,.9); color:#f8fafc; box-shadow:0 4px 14px rgba(0,0,0,.35); }
+.game-hud-score { display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 8px; }
+.game-hud-score #scoreTeams { grid-column:1; grid-row:1; color:#cbd5e1; font-size:10px; }
+.game-hud-score #score { grid-column:1; grid-row:2; font-size:20px; line-height:1.05; }
+.game-hud-score #inn { grid-column:2; grid-row:1 / span 2; color:#fbbf24; font-size:15px; white-space:nowrap; }
+#gameHud #pitchInfo { min-height:22px; padding:2px 5px; border:0; background:rgba(30,41,59,.72); font-size:11px; }
+#gameHud .hud-count { display:flex; justify-content:space-around; padding:3px 6px; border-radius:6px; background:rgba(15,23,42,.9); }
+#gameHud .hud-count > div { display:flex; align-items:center; gap:5px; }
+#gameHud .hud-pitcher { display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:10px; }
+@media (max-width:480px) { #gameHud { width:min(190px,58%); right:6px; bottom:46px; padding:5px; gap:4px; } #gameHud #pitchInfo { font-size:10px; } }
 </style>
 </head>
 <body>
 
 <main class="w-full max-w-4xl flex flex-col gap-2">
-  <!-- 상단 스코어보드 -->
-  <header class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-3 shadow-lg text-xs md:text-sm">
-    <div class="flex items-center gap-3">
-      <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-        <span class="text-slate-400 block text-[10px]">이닝</span>
-        <b id="inn" class="text-amber-400 text-base font-title">1회 초</b>
-      </div>
-      <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-        <span id="scoreTeams" class="text-slate-400 block text-[10px]">우리 팀 : 상대 팀</span>
-        <b id="score" class="text-white text-base font-title">0 : 0</b>
-      </div>
-    </div>
-    
-    <!-- 카운트 -->
-    <div class="flex gap-2 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
-      <div class="flex flex-col items-center"><span class="text-emerald-500 font-bold">B</span><b id="b" class="text-amber-400 font-mono tracking-widest text-sm">○○○</b></div>
-      <div class="flex flex-col items-center"><span class="text-yellow-500 font-bold">S</span><b id="s" class="text-amber-400 font-mono tracking-widest text-sm">○○</b></div>
-      <div class="flex flex-col items-center"><span class="text-red-500 font-bold">O</span><b id="o" class="text-amber-400 font-mono tracking-widest text-sm">○○</b></div>
-    </div>
-
-    <!-- 현재 투수 정보 -->
-    <div class="hidden sm:flex items-center gap-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-      <div class="text-right">
-        <span id="pitcherName" class="font-bold text-slate-200 block">ACE 류현진</span>
-        <span id="pitcherStats" class="text-[10px] text-amber-400">구속 A | 변화구 A</span>
-      </div>
-      <button id="changePitcherBtn" class="bg-slate-700 hover:bg-slate-600 text-xs px-2 py-1 rounded text-white border border-slate-500">교체</button>
-    </div>
+  <header class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 shadow-lg text-xs md:text-sm">
+    <b class="font-bold text-slate-200">⚾ 타이밍 야구 3D Pro</b>
+    <div class="flex items-center gap-2"><span id="pitcherName" class="font-bold text-slate-200">ACE 류현진</span><button id="changePitcherBtn" class="bg-slate-700 px-2 py-1 rounded text-white border border-slate-500">투수 교체</button></div>
   </header>
 
   <section class="top-summaries">
     <div class="summary-card"><b id="batterSideLabel" class="text-amber-400">내 타자</b><div id="batterSummary">1번 타자 · AVG — · OPS —</div></div>
     <div class="summary-card"><b id="pitcherSideLabel" class="text-sky-400">상대 투수</b><div id="pitcherSummaryTop">상대 선발 · ERA — · K 0 · WHIP —</div></div>
   </section>
-
-  <div id="pitchInfo" class="pitch-info">투구 후 구종과 구속이 표시됩니다</div>
 
   <!-- 3D 캔버스 영역 -->
   <div id="stage">
@@ -152,6 +135,19 @@ body {
 
     <div id="msg"></div>
     <div id="absPanel"><b>ABS 존 · 최근 투구</b><div id="absGrid"></div><span id="absCall">아직 투구 기록 없음</span><button id="challengeBtn" class="stadium-choice" style="display:none;width:100%;margin-top:4px;padding:5px" disabled>⚖️ 챌린지 (2)</button></div>
+
+    <section id="gameHud">
+      <div class="pitch-info" id="pitchInfo">투구 후 구종과 구속이 표시됩니다</div>
+      <div class="game-hud-score bg-slate-900 rounded-md px-2 py-1">
+        <span id="scoreTeams">우리 팀 : 상대 팀</span><b id="score" class="text-white font-title">0 : 0</b><b id="inn" class="font-title">1회 초</b>
+      </div>
+      <div class="hud-count">
+        <div><span class="text-emerald-400 font-bold">B</span><b id="b" class="text-amber-300 font-mono tracking-widest">○○○</b></div>
+        <div><span class="text-yellow-400 font-bold">S</span><b id="s" class="text-amber-300 font-mono tracking-widest">○○</b></div>
+        <div><span class="text-red-400 font-bold">O</span><b id="o" class="text-amber-300 font-mono tracking-widest">○○</b></div>
+      </div>
+      <div class="hud-pitcher"><span class="text-slate-400">투수</span><b id="pitcherStats" class="text-amber-300">구속 A | 변화구 A</b></div>
+    </section>
 
     <!-- 타이밍 게이지 바 -->
     <div id="timingWrap">
@@ -1407,12 +1403,14 @@ function tick(now) {
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const hold = 1 - smooth((elapsed - 250) / 260);
     swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold);
+    bat.position.x = (batterSide === 'R' ? 0.48 : 0.28);
     bat.rotation.set(0, 0, Math.PI / 2 * hold + BAT_READY * (1 - hold));
     up.rotation.set(-0.06 * hold, 0.04 * hold, 0);
     bt.rotation.set(0.015 * hold, 0.035 * hold, 0);
     bt.position.set(0, 0.018 * hold, -0.075 * hold);
     batterLegs.forEach((leg, i) => leg.rotation.set(0, 0, i === 1 ? -0.035 * hold : 0.015 * hold));
   } else if (sw) {
+    bat.position.x = 0.28;
     const elapsed = now - sw.t;
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const load = smooth(elapsed / 170), drive = smooth((elapsed - 170) / 190), finish = smooth((elapsed - 360) / 360);
@@ -1434,8 +1432,10 @@ function tick(now) {
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
     up.rotation.set(-0.05, 0.04, 0);
     swingArms.rotation.set(-0.24, 0.08, 0.02);
+    bat.position.x = batterSide === 'R' ? 0.48 : 0.28;
     bat.rotation.set(0, 0, Math.PI / 2);
   } else {
+    bat.position.x = 0.28;
     bt.position.set(0, 0, 0);
     bt.rotation.set(0, 0, 0);
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
@@ -1658,6 +1658,8 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
 
 
 
