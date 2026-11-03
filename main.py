@@ -1197,10 +1197,10 @@ function resolve(off) {
     updateABS(P.tx, P.ty, '스윙 · 타격 판정');
     const q = Math.abs(off) + (P.actualInZone ? 0 : 70);
     if (buntMode && S.mode === 'bat' && sw?.user) {
-      r = q < 90 ? 'bunt' : q < 195 ? 'foul' : 'whiff';
+      r = q < 48 ? 'bunt' : q < 180 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      r = off < -280 ? 'whiff' : q < 8 ? 'hr' : q < 34 ? 'double' : q < 72 ? 'single' : q < 162 ? (Math.random() < 0.72 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      r = off < -280 ? 'whiff' : q < 8 ? 'hr' : q < 29 ? 'double' : q < 58 ? 'single' : q < 170 ? (Math.random() < 0.4 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
@@ -1262,7 +1262,7 @@ function resolve(off) {
   else if (r === 'bunt') {
     if (!occ[1] && hit?.plan?.throwTo) {
       beginBatterRace(tt); label = '번트 1루 승부!';
-    } else if (!occ[1] && Math.random() < 0.25) {
+    } else if (!occ[1] && Math.random() < 0.12) {
       recordBatterHit(1); advance(1, 0, tt); label = '번트 안타!';
     } else {
       const sacrifice = !!occ[1];
@@ -1407,7 +1407,7 @@ function tick(now) {
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const hold = 1 - smooth((elapsed - 250) / 260);
     swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold);
-    bat.rotation.set(-Math.PI / 2 * hold, 0, -0.08 * hold + BAT_READY * (1 - hold));
+    bat.rotation.set(0, 0, Math.PI / 2 * hold + BAT_READY * (1 - hold));
     up.rotation.set(-0.06 * hold, 0.04 * hold, 0);
     bt.rotation.set(0.015 * hold, 0.035 * hold, 0);
     bt.position.set(0, 0.018 * hold, -0.075 * hold);
@@ -1434,7 +1434,7 @@ function tick(now) {
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
     up.rotation.set(-0.05, 0.04, 0);
     swingArms.rotation.set(-0.24, 0.08, 0.02);
-    bat.rotation.set(-Math.PI / 2, 0, -0.08);
+    bat.rotation.set(0, 0, Math.PI / 2);
   } else {
     bt.position.set(0, 0, 0);
     bt.rotation.set(0, 0, 0);
@@ -1658,7 +1658,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
 
 
