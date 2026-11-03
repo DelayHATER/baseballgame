@@ -1,4 +1,4 @@
-  """BaseBall 3D Pro — Streamlit 배포용 단일 파일."""
+# """BaseBall 3D Pro — Streamlit 배포용 단일 파일."""
 import streamlit as st
 import streamlit.components.v1 as components
 
