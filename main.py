@@ -1068,7 +1068,7 @@ function beginSacFlyRace(t0) {
   const from = (play && hit.path[play.i] ? hit.path[play.i] : runner.g.position).clone();
   from.y = 1.35;
   const to = BP[0].clone(); to.y = 1.25;
-  const throwDuration = 2200;
+  const throwDuration = 1350;
   defensiveThrow = { from, to, start: catchAt, duration: throwDuration, thrower: 'fielder', targetBase: 0 };
   runner.to = 4; runner.t0 = catchAt; runner.sp = runnerSpeed(runner, 10);
   batterRace = { kind: 'sacfly', runner, callAt: catchAt + throwDuration, hitterIndex: battingOrderIndex };
@@ -1168,7 +1168,7 @@ function attemptSteal() {
     const thrower = runnerIdx === 2 || Math.random() < 0.45 ? 'catcher' : 'pitcher';
     const target = BP[targetBase].clone(); target.y = 1.25;
     const throwFrom = thrower === 'catcher' ? V3(0.15, 1.45, 0.8) : V3(PITCHERS[currentPitcherIdx].releaseX, PITCHERS[currentPitcherIdx].releaseY, -17.8);
-    const throwDuration = 1500;
+    const throwDuration = 1500 / 1.1;
     defensiveThrow = { from: throwFrom, to: target, start: now, duration: throwDuration, thrower, targetBase };
     stealRace = { runner: activeStealRunner, runnerIdx, targetBase, throwAt: now + throwDuration };
     flash('⚠️ 견제 송구!', `${thrower === 'catcher' ? '포수' : '투수'}가 ${targetBase}루로 던집니다.`);
@@ -1929,6 +1929,4 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
 
