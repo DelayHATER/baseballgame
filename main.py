@@ -258,6 +258,12 @@ $('lineupInputs').innerHTML = Array.from({ length: 9 }, (_, i) => `
   <div class="lineup-card"><label>${i + 1}번 타자<input id="lineupName${i}" maxlength="12" value="${i + 1}번 타자"></label></div>`).join('');
 const R = (a, b) => a + Math.random() * (b - a);
 const C = (v, a, b) => Math.max(a, Math.min(b, v));
+function pciRadiusFor(hitter, mode = battingMode) {
+  const rating = hitter?.contact || 3;
+  const base = 0.12 + ((rating - 1) / 4) * 0.12;
+  const modeScale = mode === 'contact' ? 1.35 : mode === 'power' ? 0.82 : 1.12;
+  return base * modeScale;
+}
 
 if (!window.THREE) {
   $('ovP').textContent = '3D 라이브러리를 불러오지 못했습니다. 네트워크를 확인하세요.';
@@ -286,6 +292,8 @@ let battingMode = 'normal';
 let pciEnabled = false;
 let pciInsideContact = false;
 let pciOutsideContact = false;
+let homeRunCelebrationUntil = 0;
+let fireworks = [];
 let defensiveThrow = null;
 const DIFFICULTIES = { easy: { label: '쉬움', pitchSpeed: 0.86, aiContact: 0.68, zoneRate: 0.52 }, normal: { label: '보통', pitchSpeed: 1, aiContact: 1, zoneRate: 0.6 }, hard: { label: '어려움', pitchSpeed: 1.14, aiContact: 1.24, zoneRate: 0.68 } };
 const emptyBatterStats = () => ({ pa: 0, ab: 0, hits: 0, walks: 0, hbp: 0, totalBases: 0, runs: 0, rbi: 0 });
@@ -897,6 +905,52 @@ function flash(t, sub) {
   m.classList.remove('on'); void m.offsetWidth; m.classList.add('on');
 }
 
+function spawnFirework() {
+  const count = 72, positions = new Float32Array(count * 3), colors = new Float32Array(count * 3), velocities = new Float32Array(count * 3);
+  const palette = [0xffd43b, 0xff4d6d, 0x38bdf8, 0x4ade80, 0xc084fc, 0xffffff];
+  for (let i = 0; i < count; i++) {
+    const theta = R(0, Math.PI * 2), phi = R(0, Math.PI), speed = R(7, 16), ci = new THREE.Color(palette[Math.floor(Math.random() * palette.length)]);
+    velocities[i * 3] = Math.cos(theta) * Math.sin(phi) * speed;
+    velocities[i * 3 + 1] = Math.cos(phi) * speed + 1.5;
+    velocities[i * 3 + 2] = Math.sin(theta) * Math.sin(phi) * speed;
+    colors[i * 3] = ci.r; colors[i * 3 + 1] = ci.g; colors[i * 3 + 2] = ci.b;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({ size: 6, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.98, blending: THREE.AdditiveBlending, depthWrite: false });
+  const points = new THREE.Points(geometry, material);
+  points.position.set(R(-44, 44), R(25, 34), R(-105, -82));
+  points.frustumCulled = false; scene.add(points);
+  fireworks.push({ points, velocities, age: 0 });
+}
+
+function updateFireworks(dt) {
+  fireworks = fireworks.filter(firework => {
+    firework.age += dt;
+    const positions = firework.points.geometry.attributes.position.array;
+    for (let i = 0; i < positions.length; i += 3) {
+      firework.velocities[i + 1] -= 10 * dt;
+      positions[i] += firework.velocities[i] * dt;
+      positions[i + 1] += firework.velocities[i + 1] * dt;
+      positions[i + 2] += firework.velocities[i + 2] * dt;
+    }
+    firework.points.geometry.attributes.position.needsUpdate = true;
+    firework.points.material.opacity = C(1 - firework.age / 2.2, 0, 1);
+    if (firework.age < 2.2) return true;
+    scene.remove(firework.points); firework.points.geometry.dispose(); firework.points.material.dispose();
+    return false;
+  });
+}
+
+function triggerHomeRunCelebration() {
+  homeRunCelebrationUntil = performance.now() + 2600;
+  bt.visible = true;
+  flash('홈런! 🎆', '폭죽이 터집니다! 타자가 홈을 향해 세리머니합니다.');
+  snd(180, 0.38, 'sawtooth', 0.2, 760);
+  [0, 260, 520, 780].forEach(delay => setTimeout(spawnFirework, delay));
+}
+
 function overlay(t, p, b) {
   $('ovT').textContent = t; $('ovP').textContent = p; $('ov').hidden = false;
 }
@@ -1211,17 +1265,24 @@ function releasePitchCharge() {
   pitchCharge = null; cancelAnimationFrame(timingAnimId);
   $('timingWrap').style.display = 'none'; $('timingHint').style.display = 'none';
   flash(quality >= 0.82 ? '완벽한 릴리스!' : quality >= 0.35 ? '좋은 릴리스!' : '릴리스 타이밍 놓침', quality > 0 ? '구속과 변화량 보너스가 적용됩니다.' : '다음 투구에서 타이밍을 맞춰 보세요.');
-  throwPitch(quality);
+  throwPitch(quality, true);
 }
 
-function throwPitch(releaseQuality = 0) {
+function throwPitch(releaseQuality = 0, timedRelease = false) {
   const pData = PITCHERS[currentPitcherIdx];
   const T = TYPES[S.pt];
   const quality = C(releaseQuality, 0, 1);
   const fatigue = 1 - (100 - pitcherStamina) * 0.0018;
-  const e = T.err * (pData.ctrl / 0.04) / fatigue * (1 - quality * 0.1);
-  const tx = C((aim.x + R(-e, e)) / 0.4, -1.3, 1.3);
-  const ty = C((aim.y + R(-e, e) - 0.82) / 0.5, -1.3, 1.3);
+  const timingControlPenalty = timedRelease ? 1 + (1 - quality) * 0.8 : 1;
+  const e = T.err * (pData.ctrl / 0.04) / fatigue * timingControlPenalty * (1 - quality * 0.1);
+  let tx = C((aim.x + R(-e, e)) / 0.4, -1.3, 1.3);
+  let ty = C((aim.y + R(-e, e) - 0.82) / 0.5, -1.3, 1.3);
+  const wildChance = timedRelease && quality < 0.5 ? 0.06 + (1 - quality) * 0.3 : 0;
+  const wildRelease = Math.random() < wildChance;
+  if (wildRelease) {
+    if (Math.random() < 0.62) tx = (Math.random() < 0.5 ? -1 : 1) * R(1.08, 1.3);
+    else ty = (Math.random() < 0.5 ? -1 : 1) * R(1.08, 1.3);
+  }
   const now = performance.now();
   const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue * (1 + quality * 0.1));
   const speedKmh = Math.round(18.4 / (dur / 1000) * 3.6);
@@ -1235,6 +1296,7 @@ function throwPitch(releaseQuality = 0) {
     lift: T.l, t0: now + WIND, dur, done: false
   };
   me.arrive = me.t0 + me.dur; P = me; S.phase = 'pitch'; sw = null; hit = null;
+  if (wildRelease) flash('실투!', '릴리스 타이밍을 놓쳐 공이 크게 벗어났습니다.');
   
   const sp = S.strikes === 2;
   const aiChance = DIFFICULTIES[difficulty].aiContact;
@@ -1295,7 +1357,7 @@ function resolve(off) {
     pciInsideContact = false; pciOutsideContact = false;
     let q = Math.max(0, Math.abs(off) * contactScale - powerBonus - (battingMode === 'power' && hitter ? 8 : 0)) + (P.actualInZone ? 0 : 70);
     if (hitter && sw?.user && pciEnabled && !buntMode) {
-      const radius = 0.07 + ((hitter.contact - 1) / 4) * 0.11;
+      const radius = pciRadiusFor(hitter);
       const dx = P.tx * 0.4 - pciCenter.x, dy = 0.82 + P.ty * 0.5 - pciCenter.y;
       pciInsideContact = Math.hypot(dx, dy) <= radius;
       pciOutsideContact = !pciInsideContact;
@@ -1324,7 +1386,7 @@ function resolve(off) {
   }
 
   if (SPD[r]) {
-    if (r !== 'foul') setTimeout(() => { bt.visible = false; }, 560);
+    if (r !== 'foul' && r !== 'hr') setTimeout(() => { bt.visible = false; }, 560);
     const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
     const modePowerScale = S.mode !== 'bat' || r === 'bunt' ? 1 : battingMode === 'power' ? 1.18 : battingMode === 'contact' ? 0.78 : 1;
     const pciPowerScale = S.mode === 'bat' && pciInsideContact ? 1.18 : S.mode === 'bat' && pciOutsideContact ? 0.82 : 1;
@@ -1338,10 +1400,12 @@ function resolve(off) {
       const wasHit = r === 'single' || r === 'double';
       const dd = possiblePlay;
       if (dd) {
-        if (dd.air) {
-          // 가까운 플라이를 야수가 실제로 잡도록 하되, 안타성 타구는 일부만 포구 처리합니다.
-          if (!wasHit || Math.random() < 0.14) r = 'flyout';
-        } else if (r === 'groundout' || r === 'bunt') {
+        if (wasHit) {
+          const directness = C(1 - dd.distance / 5, 0, 1);
+          const catchChance = dd.air ? 0.14 + directness * 0.72 : 0.18 + directness * 0.77;
+          if (Math.random() < catchChance) r = dd.air ? 'flyout' : 'groundout';
+        } else if (dd.air) r = 'flyout';
+        else if (r === 'groundout' || r === 'bunt') {
           // 내야수가 포구 가능한 땅볼은 안타로 되돌리지 않고 아웃/1루 승부로 처리합니다.
         } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
@@ -1366,7 +1430,7 @@ function resolve(off) {
         const f = F.slice(0, 4).map(player => ({ player, d: Math.hypot(player.g.position.x - target.x, player.g.position.z - target.z) })).sort((a, b) => a.d - b.d)[0].player;
         hit.plan = { f, i, air: false, out: true, cover: F[1], throwTo: B1T.clone(), throwDuration: 1.3 };
       }
-      if (S.mode === 'pitch' && (r === 'single' || r === 'double') && possiblePlay && possiblePlay.distance > 0.45 && Math.random() < 0.22) {
+      if (S.mode === 'pitch' && (r === 'single' || r === 'double') && possiblePlay && possiblePlay.distance > 0.45 && Math.random() < 0.42) {
         hit.fieldOpportunity = possiblePlay;
       }
     }
@@ -1409,7 +1473,9 @@ function resolve(off) {
   else if (r === 'hbp') { label = '몸에 맞는 공'; if (S.mode === 'bat') { batterStats.pa++; batterStats.hbp++; opponentPitcherStats.hbp++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().hbp++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.hbp++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); }
 
   if (!batterRace && !pendingFieldingPlay) finishBatterPA();
-  flash(label, parts.join(', ')); board();
+  flash(label, parts.join(', '));
+  if (r === 'hr') triggerHomeRunCelebration();
+  board();
   const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
   const pathRun = !hit ? 0 : hit.plan
@@ -1591,6 +1657,15 @@ function tick(now) {
     bat.rotation.y += (0 - bat.rotation.y) * 0.22;
     bat.rotation.z += (BAT_READY - bat.rotation.z) * 0.18;
   }
+  if (homeRunCelebrationUntil > now) {
+    const celebrationT = now / 1000;
+    bt.visible = true;
+    swingArms.rotation.set(-0.32, 0.12, 0.82 + Math.sin(celebrationT * 7) * 0.12);
+    bat.rotation.set(0, -0.08, BAT_READY + 1.35);
+    up.rotation.set(-0.12, 0.1 + Math.sin(celebrationT * 7) * 0.04, 0);
+    bt.rotation.y = Math.sin(celebrationT * 3) * 0.08;
+    bt.position.y = 0.02 + Math.abs(Math.sin(celebrationT * 5)) * 0.035;
+  }
   
   // 주자 위치 갱신
   pool.forEach(r => {
@@ -1653,7 +1728,7 @@ function tick(now) {
 
   ret.visible = S.mode === 'pitch' && S.phase === 'aim'; ret.position.set(aim.x, aim.y, 0.15);
   const activeHitter = lineup[battingOrderIndex];
-  const pciRadius = 0.07 + (((activeHitter?.contact || 3) - 1) / 4) * 0.11;
+  const pciRadius = pciRadiusFor(activeHitter);
   const pciAim = S.phase === 'aim' ? aim : pciCenter;
   pciRing.visible = S.mode === 'bat' && pciEnabled && (S.phase === 'aim' || S.phase === 'pitch');
   pciRing.position.set(pciAim.x, pciAim.y, 0.15);
@@ -1706,6 +1781,7 @@ function tick(now) {
   cam.position.set(camPos.x + (follow ? look.x * 0.08 : 0), camPos.y, camPos.z);
   cam.lookAt(look);
 
+  updateFireworks(dt);
   ren.render(scene, cam);
   requestAnimationFrame(tick);
 }
@@ -1821,8 +1897,3 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
-
-
-
