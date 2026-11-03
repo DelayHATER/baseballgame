@@ -79,6 +79,8 @@ body {
 .btn-action:active { transform: translateY(1px); }
 .pitch-btn { background: #1e293b; border: 1px solid #334155; color: #cbd5e1; border-radius: 6px; font-size: 13px; font-weight: 600; padding: 8px 4px; }
 .pitch-btn.on { background: var(--lamp); color: #0b1726; border-color: var(--lamp); font-weight: 800; }
+.stadium-choice { background:#172554; border:1px solid #475569; border-radius:8px; color:#e2e8f0; padding:8px 10px; font-weight:700; }
+.stadium-choice.on { background:#fbbf24; color:#0b1726; border-color:#fbbf24; }
 </style>
 </head>
 <body>
@@ -135,9 +137,15 @@ body {
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">타이밍 야구 3D Pro</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        3이닝 정식 매치! 타자와 투수를 번갈아 플레이합니다.<br>
-        투수가 공을 던지기 전 대기 시간에 도루 버튼을 연타하여 주자의 속도를 높여 도루를 성공시켜 보세요!
+        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
+        3이닝 동안 공격과 수비를 번갈아 플레이하고, 외야 타구는 수비수가 직접 쫓아갑니다.
       </p>
+      <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
+        <button class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
+        <button class="stadium-choice" data-stadium="1">🏟️ 돔구장</button>
+        <button class="stadium-choice" data-stadium="2">🌊 해안 구장</button>
+        <button class="stadium-choice" data-stadium="3">🌿 그린 파크</button>
+      </div>
       <div class="flex gap-3 mt-2">
         <button id="go" class="btn-action px-6 py-3 text-base">공격(타자)부터 시작</button>
         <button id="go2" class="btn-action px-6 py-3 text-base" style="background: linear-gradient(135deg, #38bdf8, #0284c7); color:white;">수비(투수)부터 시작</button>
@@ -194,13 +202,14 @@ if (!window.THREE) {
 
 /* ---------- 로스터 / 투수 스탯 데이터 ---------- */
 const PITCHERS = [
-  { id: 0, name: 'ACE 류현진', speed: 1.15, break: 1.2, ctrl: 0.03, stam: 'A', desc: '강속구와 제구력이 뛰어난 에이스' },
-  { id: 1, name: 'SIDE 임창용', speed: 1.05, break: 1.45, ctrl: 0.04, stam: 'B', desc: '변화구의 각도가 예리한 사이드암' },
-  { id: 2, name: 'FIRE 고우석', speed: 1.25, break: 0.85, ctrl: 0.06, stam: 'B', desc: '압도적인 구속의 파이어볼러' },
-  { id: 3, name: 'CRAFT 김광현', speed: 1.0, break: 1.3, ctrl: 0.035, stam: 'A', desc: '슬라이더와 커브가 일품인 명품 투수' }
+  { id: 0, name: 'ACE 류현진', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, stam: 'A', desc: '높은 릴리스의 오버핸드 에이스' },
+  { id: 1, name: 'SIDE 임창용', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, stam: 'B', desc: '옆으로 휘두르는 사이드암 투수' },
+  { id: 2, name: 'FIRE 고우석', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, stam: 'B', desc: '낮은 릴리스의 언더핸드 파이어볼러' },
+  { id: 3, name: 'CRAFT 김광현', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, stam: 'A', desc: '대각선 릴리스의 쓰리쿼터 투수' }
 ];
 let currentPitcherIdx = 0;
 let pitcherStamina = 100;
+let selectedStadium = 0;
 
 /* ---------- 게임 상태 ---------- */
 const MAX_INN = 3, CONTACT = 64, V3 = (x,y,z) => new THREE.Vector3(x,y,z);
@@ -288,7 +297,8 @@ const grass = tex(256, 256, (g, w, h) => {
   }
 }, [34, 34]);
 
-flat(new THREE.PlaneGeometry(500, 500), new THREE.MeshStandardMaterial({ map: grass, roughness: 1 }), 0, 0, -100);
+const fieldMat = new THREE.MeshStandardMaterial({ map: grass, roughness: 1 });
+flat(new THREE.PlaneGeometry(500, 500), fieldMat, 0, 0, -100);
 const dirt = mat(0x8a5a3b, 1);
 flat(new THREE.PlaneGeometry(33, 33), dirt, 0, 0.02, -19.4, Math.PI / 4);
 flat(new THREE.PlaneGeometry(21, 21), new THREE.MeshStandardMaterial({ map: grass, roughness: 1 }), 0, 0.03, -19.4, Math.PI / 4);
@@ -323,6 +333,40 @@ const TS = Math.PI - 1.05, TL = 2.1;
 const wall = new THREE.Mesh(new THREE.CylinderGeometry(100, 100, 4, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x14402e, roughness: 0.8, side: THREE.DoubleSide }));
 wall.position.y = 2; scene.add(wall);
 
+// 관중석, 전광판, 조명탑과 돔 지붕으로 구장마다 분위기를 구분합니다.
+const stands = new THREE.Mesh(new THREE.CylinderGeometry(119, 119, 16, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x26364c, roughness: 0.88, side: THREE.DoubleSide }));
+stands.position.y = 8; scene.add(stands);
+const upperDeck = new THREE.Mesh(new THREE.CylinderGeometry(128, 128, 2.5, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.8, side: THREE.DoubleSide }));
+upperDeck.position.y = 16; scene.add(upperDeck);
+const boardFrame = mk(new THREE.BoxGeometry(25, 7, 1.4), mat(0x111827, 0.6), 0, 12, -105, scene, false);
+const boardFace = mk(new THREE.BoxGeometry(23, 5.4, 0.12), new THREE.MeshBasicMaterial({ color: 0x0f766e }), 0, 12, -104.2, scene, false);
+const stadiumLights = [];
+[-1, 1].forEach(side => [-1, 1].forEach(depth => {
+  const tower = new THREE.Group(); tower.position.set(side * 112, 0, depth * 72); scene.add(tower);
+  mk(new THREE.CylinderGeometry(0.35, 0.65, 27, 8), mat(0x64748b), 0, 13.5, 0, tower, false);
+  const lamps = mk(new THREE.BoxGeometry(7, 2, 1), new THREE.MeshBasicMaterial({ color: 0xfff7d6 }), 0, 27.2, 0, tower, false);
+  stadiumLights.push(lamps);
+}));
+const dome = new THREE.Mesh(new THREE.SphereGeometry(132, 56, 24, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0x9bd6ef, transparent: true, opacity: 0.16, roughness: 0.25, side: THREE.DoubleSide, depthWrite: false }));
+dome.position.set(0, -2, -25); dome.visible = false; scene.add(dome);
+const STADIUMS = [
+  { name: '야간 클래식', sky: 0x07101c, fog: 0x07101c, seats: 0x24364b, wall: 0x14402e, grass: 0xffffff, dome: false, board: 0x0f766e },
+  { name: '돔구장', sky: 0x182b3b, fog: 0x182b3b, seats: 0x334155, wall: 0x155e63, grass: 0xe7f1ea, dome: true, board: 0x1d4ed8 },
+  { name: '해안 구장', sky: 0x164e63, fog: 0x164e63, seats: 0x0e7490, wall: 0x0f766e, grass: 0xe1f0ff, dome: false, board: 0x0284c7 },
+  { name: '그린 파크', sky: 0x183b2b, fog: 0x183b2b, seats: 0x36533b, wall: 0x2f6b3f, grass: 0xf1f7e8, dome: false, board: 0x3f6212 }
+];
+function applyStadium(index) {
+  selectedStadium = index;
+  const stadium = STADIUMS[index];
+  scene.background.setHex(stadium.sky); scene.fog.color.setHex(stadium.fog);
+  stands.material.color.setHex(stadium.seats); wall.material.color.setHex(stadium.wall);
+  fieldMat.color.setHex(stadium.grass); boardFace.material.color.setHex(stadium.board);
+  dome.visible = stadium.dome;
+  stadiumLights.forEach(light => light.material.color.setHex(index === 1 ? 0xdbeafe : 0xfff7d6));
+  document.querySelectorAll('.stadium-choice').forEach((button, i) => button.classList.toggle('on', i === index));
+}
+applyStadium(0);
+
 /* ---------- 선수 및 공 ---------- */
 function figure(shirt, cap, x, z) {
   const g = new THREE.Group(), m1 = mat(shirt);
@@ -353,7 +397,11 @@ const arm = new THREE.Group(); arm.position.set(0.24, 2, -18.4); scene.add(arm);
 mk(new THREE.CylinderGeometry(0.05, 0.045, 0.62, 8), mat(0xffffff), 0, -0.31, 0, arm);
 
 const bt = new THREE.Group(); scene.add(bt);
-[-0.1, 0.1].forEach(dx => mk(new THREE.CylinderGeometry(0.09, 0.08, 0.85, 8), mat(0x1b2a5c), -0.95 + dx, 0.43, 0.1, bt));
+const batterLegs = [-0.1, 0.1].map((dx, i) => {
+  const leg = new THREE.Group(); leg.position.set(-0.95 + dx, 0.82, 0.1); bt.add(leg);
+  mk(new THREE.CylinderGeometry(0.09, 0.08, 0.85, 8), mat(i ? 0x18294d : 0x24385f), 0, -0.39, 0, leg);
+  return leg;
+});
 const up = new THREE.Group(); up.position.set(-0.95, 0.85, 0.1); bt.add(up);
 mk(new THREE.CylinderGeometry(0.2, 0.17, 0.62, 10), mat(0xf0f0f0), 0, 0.3, 0, up);
 mk(new THREE.SphereGeometry(0.13, 12, 10), mat(0xe8c9a0), 0, 0.77, 0, up);
@@ -413,19 +461,29 @@ function sim(p0, v0, dur) {
   for (let i = 0; i < dur * 60; i++) {
     v.y -= 14 / 60; p.addScaledVector(v, 1 / 60);
     if (p.y < 0.13) { p.y = 0.13; if (v.y < 0) v.y = Math.abs(v.y) > 2.2 ? -v.y * 0.42 : 0; }
-    if (p.y <= 0.14) { v.x *= 1 - 0.10 / 60; v.z *= 1 - 0.10 / 60; }
+    if (p.y <= 0.14) {
+      v.x *= 1 - 1.0 / 60; v.z *= 1 - 1.0 / 60;
+      if (v.y === 0 && Math.hypot(v.x, v.z) < 0.35) { a.push(p.clone()); break; }
+    }
     a.push(p.clone());
   }
   return a;
 }
 
 function defend(path) {
-  for (let i = 18; i < Math.min(path.length, 150); i += 3) {
-    const b = path[i]; if (b.y > 2.6) continue;
+  const speed = SPDF * 1.5 * 1.7;
+  for (let i = 12; i < path.length; i += 2) {
+    const b = path[i], elapsed = i / 60;
+    const air = b.y >= 0.9 && b.y <= 3.8;
+    const ground = b.y <= 0.25;
+    if (!air && !ground) continue;
+    let best = null;
     for (const f of F) {
       const q = f.g.position;
-      if (Math.hypot(q.x - b.x, q.z - b.z) / SPDF + 0.3 <= i / 60) return { i, f, air: b.y > 0.5 };
+      const distance = Math.hypot(q.x - b.x, q.z - b.z);
+      if (distance <= speed * elapsed + (air ? 1.1 : 0.65) && (!best || distance < best.distance)) best = { i, f, air, distance };
     }
+    if (best) return best;
   }
   return null;
 }
@@ -598,7 +656,7 @@ function attemptSteal() {
 }
 
 /* ---------- 투구 알고리즘 ---------- */
-const REL = V3(0.24, 1.92, -17.8), WIND = 500;
+const WIND = 500;
 
 function pitch() {
   resetField(); const now = performance.now(), inZone = Math.random() < 0.6;
@@ -617,6 +675,7 @@ function pitch() {
   
   P = {
     tx, ty, inZone,
+    release: V3(pData.releaseX, pData.releaseY, -17.8),
     curve: (Math.random() < 0.4 ? R(-1, 1) : 0) * curType.c * pData.break,
     lift: R(0, 0.35) * curType.l,
     t0: now + WIND, dur: baseDur, done: false
@@ -628,10 +687,11 @@ function pitch() {
 
 function bp(p, o) {
   const e = Math.min(p, 1.2), a = Math.sin(Math.min(p, 1) * Math.PI);
+  const rel = P.release;
   return o.set(
-    REL.x + (P.tx * 0.4 - REL.x) * e + P.curve * a * 0.5,
-    REL.y + (0.82 + P.ty * 0.5 - REL.y) * e + P.lift * a,
-    REL.z + (0.1 - REL.z) * e
+    rel.x + (P.tx * 0.4 - rel.x) * e + P.curve * a * 0.5,
+    rel.y + (0.82 + P.ty * 0.5 - rel.y) * e + P.lift * a,
+    rel.z + (0.1 - rel.z) * e
   );
 }
 
@@ -654,6 +714,7 @@ function throwPitch() {
   
   const me = {
     tx, ty, inZone: Math.abs(tx) < 0.55 && Math.abs(ty) < 0.52,
+    release: V3(pData.releaseX, pData.releaseY, -17.8),
     curve: T.c * pData.break * (Math.random() < 0.5 ? -1 : 1),
     lift: T.l, t0: now + WIND, dur, done: false
   };
@@ -715,11 +776,21 @@ function resolve(off) {
       const dd = defend(path);
       if (dd) {
         const b = path[dd.i];
+        const firstBaseTime = dd.i / 60 + Math.hypot(b.x - B1.x, b.z - B1.z) / 10.5;
         if (dd.air) r = 'flyout';
-        else if (dd.i / 60 + Math.hypot(b.x - 19.4, b.z + 19.4) / 28 + 0.25 < 4) r = 'groundout';
-        else if (r === 'groundout' || r === 'flyout') r = 'single';
+        else r = firstBaseTime < 4.15 ? 'groundout' : 'single';
         hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout', throwTo: r === 'groundout' ? B1T.clone() : null };
-      } else if (r === 'groundout' || r === 'flyout') r = 'single';
+      } else {
+        // 포구 가능한 수비수가 없으면 플라이도 인플레이 안타로 처리합니다.
+        if (r === 'groundout' || r === 'flyout') {
+          const endPos = path[path.length - 1];
+          r = Math.hypot(endPos.x, endPos.z) > 48 ? 'double' : 'single';
+        }
+        const landing = path[path.length - 1];
+        const outfieldOrder = F.slice(4).map(f => ({ f, distance: Math.hypot(f.g.position.x - landing.x, f.g.position.z - landing.z) })).sort((a, b) => a.distance - b.distance);
+        hit.chase = outfieldOrder[0]?.f || F[4];
+        hit.backup = outfieldOrder[1]?.f || F[5];
+      }
     }
   }
 
@@ -742,7 +813,8 @@ function resolve(off) {
   flash(label, parts.join(', ')); board();
   const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
-  timer = setTimeout(() => { if (S.h >= 2 * MAX_INN) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 3000); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 3000 : 2600, run + 700));
+  const pathRun = hit ? hit.path.length / (60 * 1.7) * 1000 + 250 : 0;
+  timer = setTimeout(() => { if (S.h >= 2 * MAX_INN) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun));
 }
 
 function end() {
@@ -759,7 +831,7 @@ function start(m) {
   $('ov').hidden = true; S.phase = 'wait';
   flash('플레이 볼', S.mode === 'bat' ? '초 공격' : '초 수비');
   pitcherStamina = 100;
-  timer = setTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 3000); } }, 900);
+  timer = setTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, 900);
 }
 
 function act() {
@@ -776,13 +848,26 @@ function tick(now) {
   const dt = Math.min(0.033, (now - last) / 1000); last = now;
   if (S.phase === 'pitch' && !P.done && now + CONTACT > P.arrive + 200) resolve(null);
   
-  // 투수 애니메이션
-  let th = -0.2;
-  if (P) {
-    const tt = (now - (P.t0 - WIND)) / WIND;
-    if (tt >= 0 && tt < 1) th = tt < 0.45 ? C(-0.2 - 3.2 * (tt / 0.45), -3.4, 0) : C(-3.4 + 1.5 * ((tt - 0.45) / 0.55), -3.4, 0);
+  // 투수마다 팔이 지나가는 높이와 투구 궤도가 다릅니다.
+  const pitcher = PITCHERS[currentPitcherIdx];
+  arm.position.set(pitcher.releaseX, pitcher.releaseY + 0.08, -18.4);
+  const deliveryStart = P ? P.t0 - WIND : 0;
+  const deliveryActive = !!P && now >= deliveryStart && now <= deliveryStart + 660;
+  const deliveryT = deliveryActive ? C((now - deliveryStart) / 660, 0, 1) : 1;
+  const drive = deliveryT < 0.48 ? deliveryT / 0.48 : 1 - (deliveryT - 0.48) / 0.52;
+  const recover = deliveryT < 0.48 ? 0 : (deliveryT - 0.48) / 0.52;
+  if (!deliveryActive) {
+    arm.rotation.set(-0.2, 0, 0);
+  } else if (pitcher.form === 'over') {
+    arm.rotation.set(deliveryT < 0.48 ? -0.2 - 3.15 * drive : -3.35 + 3.15 * recover, 0.04, 0.08);
+  } else if (pitcher.form === 'side') {
+    arm.rotation.set(-0.32 - 0.35 * drive + 0.67 * recover, 0, deliveryT < 0.48 ? -0.18 - 2.0 * drive : -2.18 + 2.0 * recover);
+  } else if (pitcher.form === 'under') {
+    arm.rotation.set(deliveryT < 0.48 ? 0.55 + 1.05 * drive : 1.6 - 1.8 * recover, 0.12, 0.25 + 0.3 * drive - 0.37 * recover);
+  } else {
+    arm.rotation.set(deliveryT < 0.48 ? -0.1 - 2.45 * drive : -2.55 + 2.45 * recover, 0.12, deliveryT < 0.48 ? 0.18 - 0.48 * drive : -0.3 + 0.3 * recover);
   }
-  arm.rotation.x = th;
+  pit.rotation.z = deliveryActive && deliveryT < 0.48 ? (pitcher.form === 'under' ? 0.16 : -0.08) * drive : 0;
   
   // 하체 회전 후 배트가 따라 나오고, 타격 뒤에는 자연스럽게 피니시합니다.
   let yaw = -0.9;
@@ -793,9 +878,14 @@ function tick(now) {
     yaw = elapsed < 145 ? -0.9 - 0.18 * load : elapsed < 315 ? -1.08 + 2.55 * drive : 1.47 - 0.45 * finish;
     bt.rotation.y = 0.12 + 0.64 * drive - 0.18 * finish;
     bt.rotation.z = 0.06 + 0.20 * drive - 0.10 * finish;
+    batterLegs[0].rotation.z = -0.28 * drive + 0.08 * finish;
+    batterLegs[1].rotation.z = 0.22 * drive - 0.06 * finish;
+    up.rotation.z = -0.12 * drive + 0.06 * finish;
     bat.rotation.z = -Math.PI / 2 - 0.14 + (elapsed < 145 ? -0.08 * load : 0.34 * drive - 0.16 * finish);
   } else {
     bt.rotation.y *= 0.82; bt.rotation.z *= 0.82;
+    batterLegs.forEach(leg => { leg.rotation.z *= 0.82; });
+    up.rotation.z *= 0.82;
     bat.rotation.z += (-Math.PI / 2 - 0.14 - bat.rotation.z) * 0.18;
   }
   up.rotation.y = yaw;
@@ -815,7 +905,7 @@ function tick(now) {
   
   // 수비 AI 이동
   if (hit && hit.path && hit.path.length > 0) {
-    const k = (now - hit.t) / 1000;
+    const k = (now - hit.t) / 1000 * 1.7;
     if (k >= 0) {
       const idx = Math.min(hit.path.length - 1, Math.floor(k * 60));
       const ballPos = hit.path[idx];
@@ -833,12 +923,14 @@ function tick(now) {
           }
         } else if (hit.chase === f) {
           tg = ballPos;
+        } else if (hit.backup === f) {
+          tg = ballPos.clone().add(V3(ballPos.x >= 0 ? -4 : 4, 0, 4));
         }
 
         if (tg) {
           const q = f.g.position, dx = tg.x - q.x, dz = tg.z - q.z, d = Math.hypot(dx, dz);
           if (d > 0.1) {
-            const st = Math.min(SPDF * 1.5 * dt, d);
+            const st = Math.min(SPDF * 1.5 * 1.7 * dt, d);
             q.x += (dx / d) * st;
             q.z += (dz / d) * st;
             f.g.rotation.y = Math.atan2(dx, dz);
@@ -858,7 +950,7 @@ function tick(now) {
   }
   let follow = false;
   if (hit && now >= hit.t) {
-    const k = (now - hit.t) / 1000, n = hit.path.length, i = Math.min(n - 1, Math.floor(k * 60));
+    const k = (now - hit.t) / 1000 * 1.7, n = hit.path.length, i = Math.min(n - 1, Math.floor(k * 60));
     ball.position.copy(hit.path[i]);
     if (hit.plan && hit.plan.throwTo && i >= hit.plan.i) {
       const throwProgress = C((k - hit.plan.i / 60) / 0.42, 0, 1);
@@ -887,7 +979,7 @@ function tick(now) {
 function updatePitcherUI() {
   const p = PITCHERS[currentPitcherIdx];
   $('pitcherName').textContent = p.name;
-  $('pitcherStats').textContent = `구속:${Math.round(p.speed*140)}km | 체력:${Math.round(pitcherStamina)}%`;
+  $('pitcherStats').textContent = `${p.formName} | 구속:${Math.round(p.speed*140)}km | 체력:${Math.round(pitcherStamina)}%`;
 }
 
 function openPitcherModal() {
@@ -905,7 +997,7 @@ function openPitcherModal() {
     btn.innerHTML = `
       <div class="flex justify-between items-center mb-1">
         <span class="font-bold ${idx === currentPitcherIdx ? 'text-amber-400' : 'text-white'}">${p.name}</span>
-        <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-amber-300 border border-slate-700">${Math.round(p.speed*140)} km/h</span>
+        <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-amber-300 border border-slate-700">${p.formName} · ${Math.round(p.speed*140)} km/h</span>
       </div>
       <div class="text-xs text-slate-400">${p.desc}</div>
     `;
@@ -944,6 +1036,9 @@ $('closePitcherModal').addEventListener('click', () => {
 
 $('go').addEventListener('click', () => { start('bat'); });
 $('go2').addEventListener('click', () => { start('pitch'); });
+document.querySelectorAll('.stadium-choice').forEach(button => {
+  button.addEventListener('click', () => applyStadium(Number(button.dataset.stadium)));
+});
 
 addEventListener('keydown', e => {
   if (e.code === 'Space') { e.preventDefault(); if (!e.repeat) act(); }
@@ -963,7 +1058,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
 
 
