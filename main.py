@@ -424,6 +424,18 @@ wall.position.y = 2; scene.add(wall);
 // 관중석, 전광판, 조명탑과 돔 지붕으로 구장마다 분위기를 구분합니다.
 const stands = new THREE.Mesh(new THREE.CylinderGeometry(119, 119, 16, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x26364c, roughness: 0.88, side: THREE.DoubleSide }));
 stands.position.y = 8; scene.add(stands);
+const crowdPositions = [], crowdColors = [], crowdPalette = [0xe2e8f0, 0xfbbf24, 0x38bdf8, 0xf87171, 0x34d399, 0xc4b5fd, 0xffffff];
+for (let i = 0; i < 1250; i++) {
+  const angle = TS + R(0.04, TL - 0.04), radius = R(116, 119), y = R(4.5, 15.5);
+  crowdPositions.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+  const color = new THREE.Color(crowdPalette[Math.floor(Math.random() * crowdPalette.length)]);
+  crowdColors.push(color.r, color.g, color.b);
+}
+const crowdGeometry = new THREE.BufferGeometry();
+crowdGeometry.setAttribute('position', new THREE.Float32BufferAttribute(crowdPositions, 3));
+crowdGeometry.setAttribute('color', new THREE.Float32BufferAttribute(crowdColors, 3));
+const crowd = new THREE.Points(crowdGeometry, new THREE.PointsMaterial({ size: 2.1, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9 }));
+crowd.frustumCulled = false; scene.add(crowd);
 const upperDeck = new THREE.Mesh(new THREE.CylinderGeometry(128, 128, 2.5, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0xe5e7eb, roughness: 0.8, side: THREE.DoubleSide }));
 upperDeck.position.y = 16; scene.add(upperDeck);
 const boardFrame = mk(new THREE.BoxGeometry(25, 7, 1.4), mat(0x111827, 0.6), 0, 12, -105, scene, false);
@@ -937,6 +949,24 @@ function beginBatterRace(t0) {
   S.phase = 'running';
 }
 
+function beginBuntRace(t0) {
+  const advanced = [null, null, null, null];
+  for (let base = 3; base >= 1; base--) {
+    const runner = occ[base];
+    if (!runner) continue;
+    const target = base + 1;
+    runner.to = target; runner.t0 = t0; runner.sp = 13;
+    if (target >= 4) { recordRunnerScore(runner); addScore(1); }
+    else advanced[target] = runner;
+  }
+  setOcc(advanced);
+  const runner = newRunner(t0, 9.5); runner.to = 1;
+  const play = hit.plan;
+  const raceTime = play.i / (60 * 1.7) + play.throwDuration / 1.7 + 0.2;
+  batterRace = { kind: 'first', runner, callAt: t0 + raceTime * 1000 };
+  S.phase = 'running';
+}
+
 function beginSacFlyRace(t0) {
   const runner = occ[3];
   if (!runner) return false;
@@ -1032,7 +1062,7 @@ function attemptSteal() {
   if (!isStealing) {
     isStealing = true;
     // 주자가 송구 전에 베이스에 닿을 수 있도록 연타 속도와 송구 시간을 맞춥니다.
-    stealSpeedBonus = 12.5;
+    stealSpeedBonus = 12.0;
     activeStealRunner = occ[runnerIdx];
     const targetBase = runnerIdx + 1;
     
@@ -1056,7 +1086,7 @@ function attemptSteal() {
     }, throwDuration);
   } else {
     // 도루 진행 중 연타 시 주자 속도 증가
-    stealSpeedBonus = Math.min(26, stealSpeedBonus + 2.0);
+    stealSpeedBonus = Math.min(24.5, stealSpeedBonus + 1.8);
     if (activeStealRunner) {
       activeStealRunner.sp = stealSpeedBonus;
     }
@@ -1196,7 +1226,7 @@ function resolve(off) {
       r = q < 48 ? 'bunt' : q < 180 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      r = off < -280 ? 'whiff' : q < 8 ? 'hr' : q < 29 ? 'double' : q < 58 ? 'single' : q < 170 ? (Math.random() < 0.4 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      r = off < -280 ? 'whiff' : q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.4 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
@@ -1237,6 +1267,15 @@ function resolve(off) {
         hit.chase = outfieldOrder[0]?.f || F[4];
         hit.backup = outfieldOrder[1]?.f || F[5];
       }
+      if (r === 'bunt' && !hit.plan) {
+        let i = Math.min(36, path.length - 1);
+        for (let j = 12; j < Math.min(path.length, 80); j += 2) {
+          if (path[j].y <= 0.3) { i = j; break; }
+        }
+        const target = path[i];
+        const f = F.slice(0, 4).map(player => ({ player, d: Math.hypot(player.g.position.x - target.x, player.g.position.z - target.z) })).sort((a, b) => a.d - b.d)[0].player;
+        hit.plan = { f, i, air: false, out: true, cover: F[1], throwTo: B1T.clone(), throwDuration: 1.3 };
+      }
       if (S.mode === 'pitch' && (r === 'single' || r === 'double') && possiblePlay && possiblePlay.distance > 0.45 && Math.random() < 0.22) {
         hit.fieldOpportunity = possiblePlay;
       }
@@ -1256,14 +1295,7 @@ function resolve(off) {
     else { recordBatterHit(1); advance(1, ex, tt); }
   }
   else if (r === 'bunt') {
-    if (!occ[1] && hit?.plan?.throwTo) {
-      beginBatterRace(tt); label = '번트 1루 승부!';
-    } else if (!occ[1] && Math.random() < 0.12) {
-      recordBatterHit(1); advance(1, 0, tt); label = '번트 안타!';
-    } else {
-      const sacrifice = !!occ[1];
-      recordBatterOut(); advanceRunnersOnBunt(tt); addOut(1); label = sacrifice ? '희생번트 성공!' : '번트 아웃!';
-    }
+    beginBuntRace(tt); label = '번트 1루 승부!';
   }
   else if (r === 'groundout') {
     if (!occ[1] && hit && hit.plan && hit.plan.throwTo) {
@@ -1403,7 +1435,7 @@ function tick(now) {
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const hold = 1 - smooth((elapsed - 250) / 260);
     swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold);
-    bat.position.x = (batterSide === 'R' ? 0.48 : 0.28);
+    bat.position.x = (batterSide === 'L' ? 0.58 : 0.48);
     bat.rotation.set(0, 0, Math.PI / 2 * hold + BAT_READY * (1 - hold));
     up.rotation.set(-0.06 * hold, 0.04 * hold, 0);
     bt.rotation.set(0.015 * hold, 0.035 * hold, 0);
@@ -1432,7 +1464,7 @@ function tick(now) {
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
     up.rotation.set(-0.05, 0.04, 0);
     swingArms.rotation.set(-0.24, 0.08, 0.02);
-    bat.position.x = batterSide === 'R' ? 0.48 : 0.28;
+    bat.position.x = batterSide === 'L' ? 0.58 : 0.48;
     bat.rotation.set(0, 0, Math.PI / 2);
   } else {
     bat.position.x = 0.28;
@@ -1658,8 +1690,6 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
 
 
 
