@@ -256,14 +256,14 @@ if (!window.THREE) {
 
 /* ---------- 로스터 / 투수 스탯 데이터 ---------- */
 const PITCHERS = [
-  { id: 0, name: '류현진 : MONSTER', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, pitches: [0,2,3,4], desc: '높은 릴리스의 오버핸드 에이스' },
-  { id: 1, name: '임창용 : 뱀직구', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, pitches: [0,1,2,5], desc: '옆으로 휘두르는 사이드암 투수' },
-  { id: 2, name: '고우석 : KOREAN RIVERA', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, pitches: [1,4,6], desc: '낮은 릴리스의 언더핸드 파이어볼러' },
-  { id: 3, name: '김광현 : THE ORAL', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, pitches: [0,2,3,5], desc: '대각선 릴리스의 쓰리쿼터 투수' },
-  { id: 4, name: '고영표 : 고퀄스', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, pitches: [0,1,4,6], desc: '낮은 사이드 릴리스와 날카로운 변화구' },
-  { id: 5, name: '문동주 : KOREAN SASAKI', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, pitches: [0,1,2,3], desc: '빠른 오버핸드 직구 중심 투수' },
-  { id: 6, name: '양현종 : 17MVP', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, pitches: [0,2,3,4,5], desc: '안정적인 제구와 폭넓은 구종' },
-  { id: 7, name: '정대현 : QUEEN BEA', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, pitches: [1,4,5,6], desc: '바닥에서 솟아오르는 잠수함 투수' }
+  { id: 0, title: 'MONSTER', name: '류현진', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, pitches: [0,2,3,4], desc: '높은 릴리스의 오버핸드 에이스' },
+  { id: 1, title: '뱀직구', name: '임창용', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, pitches: [0,1,2,5], desc: '옆으로 휘두르는 사이드암 투수' },
+  { id: 2, title: 'KOREAN RIVERA', name: '고우석', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, pitches: [1,4,6], desc: '낮은 릴리스의 언더핸드 파이어볼러' },
+  { id: 3, title: 'THE ORAL', name: '김광현', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, pitches: [0,2,3,5], desc: '대각선 릴리스의 쓰리쿼터 투수' },
+  { id: 4, title: '고퀄스', name: '고영표', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, pitches: [0,1,4,6], desc: '낮은 사이드 릴리스와 날카로운 변화구' },
+  { id: 5, title: 'KOREAN SASAKI', name: '문동주', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, pitches: [0,1,2,3], desc: '빠른 오버핸드 직구 중심 투수' },
+  { id: 6, title: '17MVP', name: '양현종', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, pitches: [0,2,3,4,5], desc: '안정적인 제구와 폭넓은 구종' },
+  { id: 7, title: '궁내체고', name: '정대현', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, pitches: [1,4,5,6], desc: '바닥에서 솟아오르는 잠수함 투수' }
 ];
 let currentPitcherIdx = 0;
 let pitcherStamina = 100;
@@ -743,13 +743,13 @@ function defend(path, buntPlay = false) {
     const b = path[i], elapsed = i / 60;
     const air = b.y >= 1.1 && b.y <= 2.8;
     // 땅볼은 내야에서 초기에 수비수와 맞닿을 때만 처리합니다.
-    const ground = b.y <= 0.25 && i <= 78 && Math.hypot(b.x, b.z) <= 31;
+    const ground = b.y <= 0.25 && i <= 145 && Math.hypot(b.x, b.z) <= 38;
     if (!air && !ground) continue;
     let best = null;
     for (const f of F) {
       const q = f.g.position;
       const distance = Math.hypot(q.x - b.x, q.z - b.z);
-      if (distance <= speed * elapsed + (air ? 0.9 : 0.55) && (!best || distance < best.distance)) best = { i, f, air, distance };
+      if (distance <= speed * elapsed + (air ? 1.0 : 1.3) && (!best || distance < best.distance)) best = { i, f, air, distance };
     }
     if (best) return best;
   }
@@ -1202,7 +1202,7 @@ function startTimingGauge(startT, arriveT) {
 
 /* ---------- 타격 판정 연산 ---------- */
 const LABEL = { hr: '홈런!', double: '2루타', single: '안타', bunt: '번트!', groundout: '땅볼 아웃', flyout: '뜬공 아웃', foul: '파울', whiff: '헛스윙', strike: '스트라이크', ball: '볼' };
-const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [19, 0.4], bunt: [6.8, 0.025], flyout: [17, 16], foul: [20, 12] };
+const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [15.5, 0.35], bunt: [6.8, 0.025], flyout: [17, 16], foul: [20, 12] };
 
 function resolve(off) {
   P.done = true; S.phase = 'result';
@@ -1230,7 +1230,7 @@ function resolve(off) {
       r = q < 82 ? 'bunt' : q < 140 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      r = off < -280 ? 'whiff' : q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.4 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
+      r = off < -280 ? 'whiff' : q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     }
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
@@ -1250,17 +1250,11 @@ function resolve(off) {
       const wasHit = r === 'single' || r === 'double';
       const dd = possiblePlay;
       if (dd) {
-        const b = path[dd.i];
-        const firstBaseTime = dd.i / 60 + Math.hypot(b.x - B1.x, b.z - B1.z) / 10.5;
         if (dd.air) {
           // 가까운 플라이를 야수가 실제로 잡도록 하되, 안타성 타구는 일부만 포구 처리합니다.
           if (!wasHit || Math.random() < 0.14) r = 'flyout';
         } else if (r === 'groundout' || r === 'bunt') {
-          const cover = dd.f === F[0] ? F[1] : F[0];
-          const coverTime = Math.hypot(cover.home.x - B1.x, cover.home.z - B1.z) / (SPDF * 1.5 * 1.7);
-          const canCoverFirst = coverTime <= dd.i / 60 / 1.7 + 1.3 / 1.7;
-          // 1루가 비어 있으면 땅볼 아웃 판정을 1루 승부 이벤트로 진행해 주루 타이밍을 보여줍니다.
-          if (r === 'groundout') r = !occ[1] || (firstBaseTime < 4.15 && canCoverFirst) ? 'groundout' : 'single';
+          // 내야수가 포구 가능한 땅볼은 안타로 되돌리지 않고 아웃/1루 승부로 처리합니다.
         } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
         hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.3 };
@@ -1625,7 +1619,7 @@ function openPitcherModal() {
     }`;
     btn.innerHTML = `
       <div class="flex justify-between items-center mb-1">
-        <span class="font-bold ${idx === currentPitcherIdx ? 'text-amber-400' : 'text-white'}">${p.name}</span>
+        <span class="font-bold ${idx === currentPitcherIdx ? 'text-amber-400' : 'text-white'}">${p.title} ${p.name}</span>
         <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-amber-300 border border-slate-700">${p.formName} · ${Math.round(p.speed*140)} km/h</span>
       </div>
       <div class="text-xs text-slate-400">${p.desc}</div>
@@ -1707,5 +1701,7 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
 
 
