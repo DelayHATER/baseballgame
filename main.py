@@ -2,7 +2,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="타이밍 야구 3D Pro", page_icon="⚾", layout="wide")
+st.set_page_config(page_title="컴투스아마추어야구2026", page_icon="⚾", layout="wide")
 st.markdown("""
 <style>
   [data-testid="stHeader"], [data-testid="stToolbar"] {visibility:hidden; height:0;}
@@ -16,7 +16,7 @@ GAME_HTML = r'''<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>타이밍 야구 3D Pro</title>
+<title>컴투스아마추어야구2026</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@400;600;800&display=swap">
@@ -94,9 +94,10 @@ body {
 .top-summaries { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .summary-card { min-width:0; border:1px solid #334155; border-radius:9px; background:#0f172a; padding:8px 10px; color:#e2e8f0; font-size:11px; }
 .summary-card b { display:block; font-size:12px; margin-bottom:3px; }
-.lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:112px; overflow:auto; padding:4px; }
+.lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:230px; overflow:auto; padding:4px; }
 .lineup-grid label { color:#cbd5e1; font-size:10px; text-align:left; }
 .lineup-grid input { display:block; width:100%; min-width:0; margin-top:2px; border:1px solid #475569; border-radius:5px; background:#0f172a; color:#fff; padding:5px; font-size:11px; }
+.lineup-card { min-width:0; padding:4px; border:1px solid #334155; border-radius:6px; background:rgba(15,23,42,.7); }
 .team-name-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:min(100%,440px); }
 .team-name-inputs label { color:#cbd5e1; font-size:11px; text-align:left; }
 .team-name-inputs input { display:block; width:100%; margin-top:3px; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#fff; padding:6px; font-size:12px; }
@@ -116,7 +117,7 @@ body {
 
 <main class="w-full max-w-4xl flex flex-col gap-2">
   <header class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 shadow-lg text-xs md:text-sm">
-    <b class="font-bold text-slate-200">⚾ 타이밍 야구 3D Pro</b>
+    <b class="font-bold text-slate-200">⚾ 컴투스아마추어야구2026</b>
     <div class="flex items-center gap-2"><span id="pitcherName" class="font-bold text-slate-200">ACE 류현진</span><button id="changePitcherBtn" class="bg-slate-700 px-2 py-1 rounded text-white border border-slate-500">투수 교체</button></div>
   </header>
 
@@ -158,7 +159,7 @@ body {
 
     <!-- 시작 및 결과 오버레이 -->
     <div id="ov">
-      <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">타이밍 야구 3D Pro</h2>
+      <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
         경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
         선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다. 난이도와 이닝도 여기서 고를 수 있습니다.
@@ -186,17 +187,8 @@ body {
         <button class="stadium-choice on" data-batside="R">우타</button>
         <button class="stadium-choice" data-batside="L">좌타</button>
       </div>
-      <div class="lineup-grid" id="lineupInputs">
-        <label>1번 타자<input id="lineupName0" maxlength="12" value="1번 타자"></label>
-        <label>2번 타자<input id="lineupName1" maxlength="12" value="2번 타자"></label>
-        <label>3번 타자<input id="lineupName2" maxlength="12" value="3번 타자"></label>
-        <label>4번 타자<input id="lineupName3" maxlength="12" value="4번 타자"></label>
-        <label>5번 타자<input id="lineupName4" maxlength="12" value="5번 타자"></label>
-        <label>6번 타자<input id="lineupName5" maxlength="12" value="6번 타자"></label>
-        <label>7번 타자<input id="lineupName6" maxlength="12" value="7번 타자"></label>
-        <label>8번 타자<input id="lineupName7" maxlength="12" value="8번 타자"></label>
-        <label>9번 타자<input id="lineupName8" maxlength="12" value="9번 타자"></label>
-      </div>
+      <div class="text-xs text-slate-300 mt-1">타자 능력치(주력·파워·컨택)는 경기 시작 때 무작위 배정됩니다.</div>
+      <div class="lineup-grid" id="lineupInputs"></div>
       <div class="team-name-inputs">
         <label>내 팀 이름<input id="ownTeamName" maxlength="12" value="우리 팀"></label>
         <label>상대 팀 이름<input id="opponentTeamName" maxlength="12" value="상대 팀"></label>
@@ -252,6 +244,8 @@ body {
 <script>
 (() => {
 const $ = id => document.getElementById(id);
+$('lineupInputs').innerHTML = Array.from({ length: 9 }, (_, i) => `
+  <div class="lineup-card"><label>${i + 1}번 타자<input id="lineupName${i}" maxlength="12" value="${i + 1}번 타자"></label></div>`).join('');
 const R = (a, b) => a + Math.random() * (b - a);
 const C = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -262,14 +256,14 @@ if (!window.THREE) {
 
 /* ---------- 로스터 / 투수 스탯 데이터 ---------- */
 const PITCHERS = [
-  { id: 0, name: 'ACE 류현진', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, pitches: [0,2,3,4], desc: '높은 릴리스의 오버핸드 에이스' },
-  { id: 1, name: 'SIDE 임창용', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, pitches: [0,1,2,5], desc: '옆으로 휘두르는 사이드암 투수' },
-  { id: 2, name: 'FIRE 고우석', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, pitches: [1,4,6], desc: '낮은 릴리스의 언더핸드 파이어볼러' },
-  { id: 3, name: 'CRAFT 김광현', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, pitches: [0,2,3,5], desc: '대각선 릴리스의 쓰리쿼터 투수' },
-  { id: 4, name: 'SIDE 고영표', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, pitches: [0,1,4,6], desc: '낮은 사이드 릴리스와 날카로운 변화구' },
-  { id: 5, name: 'FIRE 문동주', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, pitches: [0,1,2,3], desc: '빠른 오버핸드 직구 중심 투수' },
-  { id: 6, name: 'LEFT 양현종', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, pitches: [0,2,3,4,5], desc: '안정적인 제구와 폭넓은 구종' },
-  { id: 7, name: 'SUBMARINE 정대현', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, pitches: [1,4,5,6], desc: '바닥에서 솟아오르는 잠수함 투수' }
+  { id: 0, name: '류현진 : MONSTER', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, pitches: [0,2,3,4], desc: '높은 릴리스의 오버핸드 에이스' },
+  { id: 1, name: '임창용 : 뱀직구', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.04, pitches: [0,1,2,5], desc: '옆으로 휘두르는 사이드암 투수' },
+  { id: 2, name: '고우석 : KOREAN RIVERA', form: 'under', formName: '언더핸드', releaseX: 0.12, releaseY: 1.02, speed: 1.25, break: 0.85, ctrl: 0.06, pitches: [1,4,6], desc: '낮은 릴리스의 언더핸드 파이어볼러' },
+  { id: 3, name: '김광현 : THE ORAL', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.39, releaseY: 1.7, speed: 1.0, break: 1.3, ctrl: 0.035, pitches: [0,2,3,5], desc: '대각선 릴리스의 쓰리쿼터 투수' },
+  { id: 4, name: '고영표 : 고퀄스', form: 'side', formName: '사이드암', releaseX: 0.48, releaseY: 1.36, speed: 0.98, break: 1.55, ctrl: 0.028, pitches: [0,1,4,6], desc: '낮은 사이드 릴리스와 날카로운 변화구' },
+  { id: 5, name: '문동주 : KOREAN SASAKI', form: 'over', formName: '오버핸드', releaseX: 0.18, releaseY: 2.04, speed: 1.3, break: 0.9, ctrl: 0.052, pitches: [0,1,2,3], desc: '빠른 오버핸드 직구 중심 투수' },
+  { id: 6, name: '양현종 : 17MVP', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.42, releaseY: 1.62, speed: 1.04, break: 1.25, ctrl: 0.032, pitches: [0,2,3,4,5], desc: '안정적인 제구와 폭넓은 구종' },
+  { id: 7, name: '정대현 : QUEEN BEA', form: 'under', formName: '언더핸드', releaseX: 0.56, releaseY: 0.92, speed: 0.96, break: 1.6, ctrl: 0.04, pitches: [1,4,5,6], desc: '바닥에서 솟아오르는 잠수함 투수' }
 ];
 let currentPitcherIdx = 0;
 let pitcherStamina = 100;
@@ -417,7 +411,7 @@ const zone = new THREE.LineLoop(
 scene.add(zone);
 
 /* 외야/팬스 */
-const TS = Math.PI - 1.05, TL = 2.1;
+const TS = Math.PI * 1.5 - 1.05, TL = 2.1;
 const wall = new THREE.Mesh(new THREE.CylinderGeometry(100, 100, 4, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x14402e, roughness: 0.8, side: THREE.DoubleSide }));
 wall.position.y = 2; scene.add(wall);
 
@@ -425,8 +419,8 @@ wall.position.y = 2; scene.add(wall);
 const stands = new THREE.Mesh(new THREE.CylinderGeometry(119, 119, 16, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x26364c, roughness: 0.88, side: THREE.DoubleSide }));
 stands.position.y = 8; scene.add(stands);
 const crowdPositions = [], crowdColors = [], crowdPalette = [0xe2e8f0, 0xfbbf24, 0x38bdf8, 0xf87171, 0x34d399, 0xc4b5fd, 0xffffff];
-for (let i = 0; i < 1250; i++) {
-  const angle = TS + R(0.04, TL - 0.04), radius = R(116, 119), y = R(4.5, 15.5);
+for (let i = 0; i < 4200; i++) {
+  const angle = TS + R(0.04, TL - 0.04), radius = R(115.5, 120.5), y = R(4.2, 16.2);
   crowdPositions.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
   const color = new THREE.Color(crowdPalette[Math.floor(Math.random() * crowdPalette.length)]);
   crowdColors.push(color.r, color.g, color.b);
@@ -699,7 +693,9 @@ function updateStatsUI() {
   const batterTop = $('batterSummary');
   $('batterSideLabel').textContent = ownBatter ? '내 타자 기록' : '상대 타자 기록';
   $('pitcherSideLabel').textContent = ownBatter ? '상대 투수 기록' : '내 투수 기록';
-  if (batterTop) batterTop.innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번 ${ownBatter ? lineup[battingOrderIndex].name : opponentLineup[opponentBatterIndex].name}</strong><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${bs.runs} · 타점 ${bs.rbi} · 안타 ${bs.hits}`;
+  const hitterAbilities = ownBatter ? lineup[battingOrderIndex] : null;
+  const abilitySummary = hitterAbilities ? `<br>능력 · 주력 ${hitterAbilities.speed} · 파워 ${hitterAbilities.power} · 컨택 ${hitterAbilities.contact}` : '';
+  if (batterTop) batterTop.innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번 ${ownBatter ? lineup[battingOrderIndex].name : opponentLineup[opponentBatterIndex].name}</strong><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${bs.runs} · 타점 ${bs.rbi} · 안타 ${bs.hits}${abilitySummary}`;
   const pitcherTop = $('pitcherSummaryTop');
   if (pitcherTop) pitcherTop.innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · 피안타 ${ps.hits} · HBP ${ps.hbp}`;
 }
@@ -739,10 +735,10 @@ function sim(p0, v0, dur) {
   return a;
 }
 
-function defend(path) {
+function defend(path, buntPlay = false) {
   // path는 시뮬레이션 시간(초) 기준입니다. 렌더링 가속 배율을 다시 곱하면
   // 수비수가 외야 타구를 비현실적으로 멀리서 잡는 것으로 판정됩니다.
-  const speed = SPDF * 1.5;
+  const speed = SPDF * 1.5 * (buntPlay ? 0.38 : 1);
   for (let i = 12; i < Math.min(path.length, 210); i += 2) {
     const b = path[i], elapsed = i / 60;
     const air = b.y >= 1.1 && b.y <= 2.8;
@@ -877,9 +873,12 @@ function overlay(t, p, b) {
 
 function newRunner(t0, sp) {
   const q = pool.find(x => !x.on) || pool[0];
-  Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp, batterIndex: S.mode === 'bat' ? battingOrderIndex : opponentBatterIndex, batterSide: S.mode });
+  const batterIndex = S.mode === 'bat' ? battingOrderIndex : opponentBatterIndex;
+  const rating = S.mode === 'bat' ? (lineup[batterIndex]?.speed || 3) : 3;
+  Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp: sp * (0.84 + rating * 0.04), speedRating: rating, batterIndex, batterSide: S.mode });
   q.g.visible = true; q.g.position.copy(BP[0]); return q;
 }
+function runnerSpeed(runner, baseSpeed) { return baseSpeed * (0.84 + (runner?.speedRating || 3) * 0.04); }
 function recordRunnerScore(r) {
   if (!Number.isInteger(r?.batterIndex)) return;
   const players = r.batterSide === 'bat' ? lineup : opponentLineup;
@@ -892,7 +891,7 @@ function advance(n, ex, t0) {
   const no = [null, null, null, null], sp = n >= 4 ? 28 : 16;
   for (let i = 3; i >= 1; i--) {
     const r = occ[i]; if (!r) continue;
-    const t = Math.min(4, i + n + ex); r.to = t; r.t0 = t0; r.sp = sp;
+    const t = Math.min(4, i + n + ex); r.to = t; r.t0 = t0; r.sp = runnerSpeed(r, sp);
     if (t >= 4) { recordRunnerScore(r); addScore(1); } else no[t] = r;
   }
   const b = newRunner(t0, sp); b.to = Math.min(n, 4);
@@ -906,7 +905,7 @@ function advanceRunnersOnBunt(t0) {
   for (let base = 3; base >= 1; base--) {
     const runner = occ[base];
     if (!runner) continue;
-    runner.to = base + 1; runner.t0 = t0; runner.sp = 13;
+    runner.to = base + 1; runner.t0 = t0; runner.sp = runnerSpeed(runner, 13);
     if (base === 3) { recordRunnerScore(runner); addScore(1); }
     else no[base + 1] = runner;
   }
@@ -914,7 +913,7 @@ function advanceRunnersOnBunt(t0) {
 }
 
 function walk(t0) {
-  const r = occ, no = [null, null, null, null], mv = (x, to) => { x.to = to; x.t0 = t0; x.sp = 16; };
+  const r = occ, no = [null, null, null, null], mv = (x, to) => { x.to = to; x.t0 = t0; x.sp = runnerSpeed(x, 16); };
   if (r[1]) {
     if (r[2]) { if (r[3]) { mv(r[3], 4); recordRunnerScore(r[3]); addScore(1); } mv(r[2], 3); no[3] = r[2]; } else no[3] = r[3];
     mv(r[1], 2); no[2] = r[1];
@@ -938,7 +937,7 @@ function beginBatterRace(t0) {
     const other = occ[base];
     if (!other) continue;
     const target = base + 1;
-    other.to = target; other.t0 = t0; other.sp = 16;
+    other.to = target; other.t0 = t0; other.sp = runnerSpeed(other, 16);
     occ[base] = null;
     if (target >= 4) addScore(1); else occ[target] = other;
   }
@@ -955,7 +954,7 @@ function beginBuntRace(t0) {
     const runner = occ[base];
     if (!runner) continue;
     const target = base + 1;
-    runner.to = target; runner.t0 = t0; runner.sp = 13;
+    runner.to = target; runner.t0 = t0; runner.sp = runnerSpeed(runner, 13);
     if (target >= 4) { recordRunnerScore(runner); addScore(1); }
     else advanced[target] = runner;
   }
@@ -1062,8 +1061,9 @@ function attemptSteal() {
   if (!isStealing) {
     isStealing = true;
     // 주자가 송구 전에 베이스에 닿을 수 있도록 연타 속도와 송구 시간을 맞춥니다.
-    stealSpeedBonus = 12.0;
     activeStealRunner = occ[runnerIdx];
+    const runnerScale = 0.84 + (activeStealRunner.speedRating || 3) * 0.04;
+    stealSpeedBonus = 12.0 * runnerScale;
     const targetBase = runnerIdx + 1;
     
     activeStealRunner.to = targetBase;
@@ -1086,7 +1086,8 @@ function attemptSteal() {
     }, throwDuration);
   } else {
     // 도루 진행 중 연타 시 주자 속도 증가
-    stealSpeedBonus = Math.min(24.5, stealSpeedBonus + 1.8);
+    const runnerScale = 0.84 + (activeStealRunner?.speedRating || 3) * 0.04;
+    stealSpeedBonus = Math.min(24.5 * runnerScale, stealSpeedBonus + 1.8 * runnerScale);
     if (activeStealRunner) {
       activeStealRunner.sp = stealSpeedBonus;
     }
@@ -1221,9 +1222,12 @@ function resolve(off) {
   } else {
     pendingABSCall = null;
     updateABS(P.tx, P.ty, '스윙 · 타격 판정');
-    const q = Math.abs(off) + (P.actualInZone ? 0 : 70);
+    const hitter = S.mode === 'bat' ? lineup[battingOrderIndex] : null;
+    const contactScale = hitter && !buntMode ? 1 - (hitter.contact - 3) * 0.035 : 1;
+    const powerBonus = hitter && !buntMode ? (hitter.power - 3) * 2.4 : 0;
+    const q = Math.max(0, Math.abs(off) * contactScale - powerBonus) + (P.actualInZone ? 0 : 70);
     if (buntMode && S.mode === 'bat' && sw?.user) {
-      r = q < 48 ? 'bunt' : q < 180 ? 'foul' : 'whiff';
+      r = q < 82 ? 'bunt' : q < 140 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
       r = off < -280 ? 'whiff' : q < 6 ? 'hr' : q < 26 ? 'double' : q < 52 ? 'single' : q < 170 ? (Math.random() < 0.4 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
@@ -1235,11 +1239,13 @@ function resolve(off) {
 
   if (SPD[r]) {
     if (r !== 'foul') setTimeout(() => { bt.visible = false; }, 560);
-    const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r], s = vh * R(0.9, 1.1);
-    const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1), -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
-    hit = { t: T, path, plan: null, hr: r === 'hr', chase: null };
+    const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
+    const powerScale = S.mode === 'bat' && r !== 'bunt' ? 1 + (lineup[battingOrderIndex].power - 3) * 0.04 : 1;
+    const s = vh * R(0.9, 1.1) * powerScale;
+    const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1) * powerScale, -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
+    hit = { t: T, path, plan: null, hr: r === 'hr', bunt: r === 'bunt', chase: null };
     if (r !== 'hr' && r !== 'foul') {
-      const possiblePlay = defend(path);
+      const possiblePlay = defend(path, r === 'bunt');
       // 안타/2루타로 판정된 타구는 포구 추정만으로 아웃으로 뒤집지 않습니다.
       const wasHit = r === 'single' || r === 'double';
       const dd = possiblePlay;
@@ -1365,7 +1371,13 @@ function start(m) {
   lineup = Array.from({ length: 9 }, (_, i) => {
     const entered = $(`lineupName${i}`)?.value?.trim();
     const name = entered && entered !== `${i + 1}번 타자` ? entered : `${i + 1}번 타자`;
-    return { name, stats: emptyBatterStats() };
+    return {
+      name,
+      speed: 1 + Math.floor(Math.random() * 5),
+      power: 1 + Math.floor(Math.random() * 5),
+      contact: 1 + Math.floor(Math.random() * 5),
+      stats: emptyBatterStats()
+    };
   });
   battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false;
   opponentPitcherStats = emptyPitcherStats();
@@ -1529,7 +1541,8 @@ function tick(now) {
         if (tg) {
           const q = f.g.position, dx = tg.x - q.x, dz = tg.z - q.z, d = Math.hypot(dx, dz);
           if (d > 0.1) {
-            const st = Math.min(SPDF * 1.5 * 1.7 * dt, d);
+            const buntSpeed = hit.bunt ? 0.38 : 1;
+            const st = Math.min(SPDF * 1.5 * 1.7 * dt * buntSpeed, d);
             q.x += (dx / d) * st;
             q.z += (dz / d) * st;
             f.g.rotation.y = Math.atan2(dx, dz);
