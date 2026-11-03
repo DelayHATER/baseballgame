@@ -639,6 +639,18 @@ function challengeABS() {
 
 function currentPitcherStats() { return pitcherStatsById[currentPitcherIdx]; }
 function battingAverage() { return batterStats.ab ? batterStats.hits / batterStats.ab : 0; }
+function totalBatterStats(players) {
+  return players.reduce((sum, player) => {
+    for (const key of ['pa','ab','hits','walks','hbp','totalBases','runs','rbi']) sum[key] += player.stats[key] || 0;
+    return sum;
+  }, emptyBatterStats());
+}
+function totalPitcherStats() {
+  return Object.values(pitcherStatsById).reduce((sum, ps) => {
+    for (const key of ['outs','strikeouts','walks','hits','hbp','earnedRuns']) sum[key] += ps[key] || 0;
+    return sum;
+  }, emptyPitcherStats());
+}
 function updateStatsUI() {
   const ownBatter = S.mode === 'bat';
   const bs = ownBatter ? batterStats : opponentLineup[opponentBatterIndex].stats;
@@ -650,8 +662,15 @@ function updateStatsUI() {
   const ip = ps.outs / 3;
   const era = ip ? (ps.earnedRuns * 9 / ip).toFixed(2) : '—';
   const whip = ip ? ((ps.walks + ps.hits) / ip).toFixed(2) : '—';
-  $('batterStats').innerHTML = `AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${batterStats.runs} · 타점 ${batterStats.rbi} · 안타 ${batterStats.hits} · BB ${batterStats.walks} · HBP ${batterStats.hbp}`;
-  $('pitcherGameStats').textContent = `ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · HBP ${ps.hbp}`;
+  const teamBat = totalBatterStats(lineup), teamAvg = teamBat.ab ? teamBat.hits / teamBat.ab : 0;
+  const teamOBPden = teamBat.ab + teamBat.walks + teamBat.hbp;
+  const teamOBP = teamOBPden ? (teamBat.hits + teamBat.walks + teamBat.hbp) / teamOBPden : 0;
+  const teamSLG = teamBat.ab ? teamBat.totalBases / teamBat.ab : 0;
+  const teamPitch = totalPitcherStats(), teamIP = teamPitch.outs / 3;
+  const teamERA = teamIP ? (teamPitch.earnedRuns * 9 / teamIP).toFixed(2) : '—';
+  const teamWHIP = teamIP ? ((teamPitch.walks + teamPitch.hits) / teamIP).toFixed(2) : '—';
+  $('batterStats').innerHTML = `AVG ${teamAvg.toFixed(3)} · OBP ${teamOBP.toFixed(3)} · SLG ${teamSLG.toFixed(3)} · OPS ${(teamOBP + teamSLG).toFixed(3)}<br>득점 ${teamBat.runs} · 타점 ${teamBat.rbi} · 안타 ${teamBat.hits} · BB ${teamBat.walks} · HBP ${teamBat.hbp}`;
+  $('pitcherGameStats').textContent = `ERA ${teamERA} · K ${teamPitch.strikeouts} · BB ${teamPitch.walks} · WHIP ${teamWHIP} · HBP ${teamPitch.hbp}`;
   const batterTop = $('batterSummary');
   $('batterSideLabel').textContent = ownBatter ? '내 타자 기록' : '상대 타자 기록';
   $('pitcherSideLabel').textContent = ownBatter ? '상대 투수 기록' : '내 투수 기록';
@@ -743,6 +762,7 @@ function addScore(amount) {
     batterStats.rbi += amount; opponentPitcherStats.earnedRuns += amount;
   } else {
     S.sc[1] += amount;
+    opponentLineup[opponentBatterIndex].stats.rbi += amount;
     if (S.mode === 'pitch') currentPitcherStats().earnedRuns += amount;
   }
 }
@@ -783,10 +803,14 @@ function overlay(t, p, b) {
 
 function newRunner(t0, sp) {
   const q = pool.find(x => !x.on) || pool[0];
-  Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp, batterIndex: S.mode === 'bat' ? battingOrderIndex : null });
+  Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp, batterIndex: S.mode === 'bat' ? battingOrderIndex : opponentBatterIndex, batterSide: S.mode });
   q.g.visible = true; q.g.position.copy(BP[0]); return q;
 }
-function recordRunnerScore(r) { if (S.mode === 'bat' && Number.isInteger(r?.batterIndex)) lineup[r.batterIndex].stats.runs++; }
+function recordRunnerScore(r) {
+  if (!Number.isInteger(r?.batterIndex)) return;
+  const players = r.batterSide === 'bat' ? lineup : opponentLineup;
+  players[r.batterIndex].stats.runs++;
+}
 function setOcc(no) { occ = no; S.bases = [no[1] ? 1 : 0, no[2] ? 1 : 0, no[3] ? 1 : 0]; }
 function clearRun() { batterRace = null; pool.forEach(q => { q.on = false; q.g.visible = false; }); setOcc([null, null, null, null]); }
 
@@ -883,7 +907,8 @@ function attemptSteal() {
   const now = performance.now();
   if (!isStealing) {
     isStealing = true;
-    stealSpeedBonus = 16;
+    // 연타를 많이 하지 않아도 주자의 실제 도착 속도로 성공 판정합니다.
+    stealSpeedBonus = 18;
     activeStealRunner = occ[runnerIdx];
     const targetBase = runnerIdx + 1;
     
@@ -899,7 +924,7 @@ function attemptSteal() {
     snd(500, 0.1, 'sine', 0.2);
     
     // 도루 시도에 투수가 견제할 수 있습니다.
-    const pickedOff = Math.random() < 0.27;
+    const pickedOff = Math.random() < 0.08;
     setTimeout(() => {
       if (!isStealing || !activeStealRunner) return;
 
@@ -920,8 +945,8 @@ function attemptSteal() {
         return;
       }
       
-      // 최종 속도가 23 이상이면 도루 성공
-      if (stealSpeedBonus >= 23) {
+      // 주자가 베이스에 먼저 도착했거나 연타 속도가 충분하면 세이프 처리합니다.
+      if (activeStealRunner.b >= targetBase || stealSpeedBonus >= 20) {
         flash("⚡ 도루 성공!", "빠른 연타로 진루!");
         occ[targetBase] = activeStealRunner;
         occ[runnerIdx] = null;
@@ -941,7 +966,7 @@ function attemptSteal() {
     }, 2000);
   } else {
     // 도루 진행 중 연타 시 주자 속도 증가
-    stealSpeedBonus = Math.min(32, stealSpeedBonus + 2.5);
+    stealSpeedBonus = Math.min(32, stealSpeedBonus + 3.5);
     if (activeStealRunner) {
       activeStealRunner.sp = stealSpeedBonus;
     }
@@ -1076,7 +1101,7 @@ function resolve(off) {
     pendingABSCall = null;
     updateABS(P.tx, P.ty, '스윙 · 타격 판정');
     const q = Math.abs(off) + (P.actualInZone ? 0 : 70);
-    r = off < -280 ? 'whiff' : q < 30 ? 'hr' : q < 62 ? 'double' : q < 100 ? 'single' : q < 145 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 210 ? 'foul' : 'whiff';
+    r = off < -280 ? 'whiff' : q < 30 ? 'hr' : q < 62 ? 'double' : q < 100 ? 'single' : q < 145 ? (Math.random() < 0.68 ? 'groundout' : 'flyout') : q < 210 ? 'foul' : 'whiff';
     parts.push(Math.abs(off) < 30 ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
     if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
     else setTimeout(hitSound, CONTACT);
@@ -1100,7 +1125,8 @@ function resolve(off) {
           const cover = dd.f === F[0] ? F[1] : F[0];
           const coverTime = Math.hypot(cover.home.x - B1.x, cover.home.z - B1.z) / (SPDF * 1.5 * 1.7);
           const canCoverFirst = coverTime <= dd.i / 60 / 1.7 + 1.3 / 1.7;
-          r = firstBaseTime < 4.15 && canCoverFirst ? 'groundout' : 'single';
+          // 1루가 비어 있으면 땅볼 아웃 판정을 1루 승부 이벤트로 진행해 주루 타이밍을 보여줍니다.
+          r = !occ[1] || (firstBaseTime < 4.15 && canCoverFirst) ? 'groundout' : 'single';
         } else if (r === 'flyout') r = 'single';
         const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
         hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout', cover, throwTo: r === 'groundout' ? B1T.clone() : null, throwDuration: 1.3 };
@@ -1137,7 +1163,7 @@ function resolve(off) {
   }
   else if (r === 'flyout') { recordBatterOut(); addOut(1); }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
-  else if (r === 'strike' || r === 'whiff') { S.strikes++; if (S.strikes >= 3) { label = '삼진 아웃'; recordBatterOut(); if (S.mode === 'pitch') currentPitcherStats().strikeouts++; addOut(1); } }
+  else if (r === 'strike' || r === 'whiff') { S.strikes++; if (S.strikes >= 3) { label = '삼진 아웃'; recordBatterOut(); if (S.mode === 'pitch') currentPitcherStats().strikeouts++; else opponentPitcherStats.strikeouts++; addOut(1); } }
   else if (r === 'ball') { S.balls++; if (S.balls >= 4) { label = '볼넷'; if (S.mode === 'bat') { batterStats.pa++; batterStats.walks++; opponentPitcherStats.walks++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().walks++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.walks++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); } }
   else if (r === 'hbp') { label = '몸에 맞는 공'; if (S.mode === 'bat') { batterStats.pa++; batterStats.hbp++; opponentPitcherStats.hbp++; batterPAMode = 'bat'; batterPAComplete = true; } else if (S.mode === 'pitch') { currentPitcherStats().hbp++; opponentLineup[opponentBatterIndex].stats.pa++; opponentLineup[opponentBatterIndex].stats.hbp++; batterPAMode = 'pitch'; batterPAComplete = true; } walk(tt); }
 
@@ -1238,18 +1264,27 @@ function tick(now) {
     }
   }
   
-  // 몸통·팔·다리는 고정하고 배트만 휘둘러 타격합니다.
+  // 준비 동작에서 뒤로 당겼다가, 작은 체중 이동과 함께 배트를 앞쪽으로 크게 가속합니다.
   if (sw) {
     const elapsed = now - sw.t;
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
-    const load = smooth(elapsed / 145), drive = smooth((elapsed - 145) / 170), finish = smooth((elapsed - 315) / 420);
-    bat.rotation.y = elapsed < 145 ? -0.08 * load : elapsed < 315 ? -0.08 + 1.42 * drive : 1.34 - 0.4 * finish;
-    bat.rotation.z = BAT_READY + (elapsed < 145 ? -0.22 * load : 0.9 * drive - 0.25 * finish);
+    const load = smooth(elapsed / 170), drive = smooth((elapsed - 170) / 190), finish = smooth((elapsed - 360) / 360);
+    const recoil = Math.sin(Math.min(1, elapsed / 170) * Math.PI / 2);
+    swingArms.rotation.y = elapsed < 170 ? -0.22 - 0.92 * load : elapsed < 360 ? -1.14 + 2.35 * drive : 1.21 - 0.42 * finish;
+    swingArms.rotation.z = elapsed < 170 ? -0.12 * load : elapsed < 360 ? -0.12 + 0.48 * drive : 0.36 - 0.18 * finish;
+    bat.rotation.y = elapsed < 170 ? -0.25 * load : elapsed < 360 ? -0.25 + 0.58 * drive : 0.33 - 0.25 * finish;
+    bat.rotation.z = elapsed < 170 ? BAT_READY - 0.62 * recoil : elapsed < 360 ? BAT_READY - 0.62 + 2.05 * drive : BAT_READY + 1.43 - 0.5 * finish;
+    up.rotation.y = elapsed < 170 ? -0.04 - 0.12 * load : elapsed < 360 ? -0.16 + 0.31 * drive : 0.15 - 0.08 * finish;
+    bt.rotation.y = elapsed < 170 ? -0.04 * load : elapsed < 360 ? -0.04 + 0.11 * drive : 0.07 - 0.03 * finish;
+    const frontLeg = batterSide === 'R' ? batterLegs[1] : batterLegs[0];
+    frontLeg.rotation.z = elapsed < 170 ? 0.03 * load : elapsed < 360 ? 0.03 - 0.13 * drive : -0.10 + 0.07 * finish;
   } else {
     bt.rotation.set(0, 0, 0);
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
     up.rotation.set(0, 0.03, 0);
     swingArms.rotation.set(0, 0, 0);
+    swingArms.rotation.y += (0 - swingArms.rotation.y) * 0.18;
+    swingArms.rotation.z += (0 - swingArms.rotation.z) * 0.18;
     bat.rotation.y += (0 - bat.rotation.y) * 0.22;
     bat.rotation.z += (BAT_READY - bat.rotation.z) * 0.18;
   }
@@ -1455,6 +1490,5 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
 
 
