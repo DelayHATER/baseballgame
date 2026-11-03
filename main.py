@@ -1187,7 +1187,7 @@ function startTimingGauge(startT, arriveT) {
 
 /* ---------- 타격 판정 연산 ---------- */
 const LABEL = { hr: '홈런!', double: '2루타', single: '안타', bunt: '번트!', groundout: '땅볼 아웃', flyout: '뜬공 아웃', foul: '파울', whiff: '헛스윙', strike: '스트라이크', ball: '볼' };
-const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [19, 0.4], bunt: [8.5, 0.06], flyout: [17, 16], foul: [20, 12] };
+const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [19, 0.4], bunt: [6.8, 0.025], flyout: [17, 16], foul: [20, 12] };
 
 function resolve(off) {
   P.done = true; S.phase = 'result';
@@ -1209,7 +1209,7 @@ function resolve(off) {
     updateABS(P.tx, P.ty, '스윙 · 타격 판정');
     const q = Math.abs(off) + (P.actualInZone ? 0 : 70);
     if (buntMode && S.mode === 'bat' && sw?.user) {
-      r = q < 185 ? 'bunt' : q < 275 ? 'foul' : 'whiff';
+      r = q < 115 ? 'bunt' : q < 195 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
       r = off < -280 ? 'whiff' : q < 13 ? 'hr' : q < 52 ? 'double' : q < 100 ? 'single' : q < 162 ? (Math.random() < 0.72 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
@@ -1274,10 +1274,11 @@ function resolve(off) {
   else if (r === 'bunt') {
     if (!occ[1] && hit?.plan?.throwTo) {
       beginBatterRace(tt); label = '번트 1루 승부!';
-    } else if (!occ[1]) {
+    } else if (!occ[1] && Math.random() < 0.25) {
       recordBatterHit(1); advance(1, 0, tt); label = '번트 안타!';
     } else {
-      recordBatterOut(); advanceRunnersOnBunt(tt); addOut(1); label = '희생번트 성공!';
+      const sacrifice = !!occ[1];
+      recordBatterOut(); advanceRunnersOnBunt(tt); addOut(1); label = sacrifice ? '희생번트 성공!' : '번트 아웃!';
     }
   }
   else if (r === 'groundout') {
@@ -1370,7 +1371,7 @@ function act() {
   if (S.phase === 'idle' || S.phase === 'over') return start(S.fm);
   if (S.phase === 'aim') { if (S.mode === 'pitch') return throwPitch(); return; }
   if (S.phase !== 'pitch' || sw || S.mode === 'pitch') return;
-  const now = performance.now(); sw = { t: now, user: true }; resolve(now + CONTACT - P.arrive);
+  const now = performance.now(); sw = { t: now, user: true, bunt: buntMode }; resolve(now + CONTACT - P.arrive);
 }
 
 /* ---------- 메인 프레임 렌더링 Loop ---------- */
@@ -1413,7 +1414,17 @@ function tick(now) {
   }
   
   // 준비 동작에서 뒤로 당겼다가, 작은 체중 이동과 함께 배트를 앞쪽으로 크게 가속합니다.
-  if (sw) {
+  if (sw?.bunt) {
+    const elapsed = now - sw.t;
+    const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
+    const hold = 1 - smooth((elapsed - 250) / 260);
+    swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold);
+    bat.rotation.set(-1.02 * hold, 0, -0.08 * hold + BAT_READY * (1 - hold));
+    up.rotation.set(-0.06 * hold, 0.04 * hold, 0);
+    bt.rotation.set(0.015 * hold, 0.035 * hold, 0);
+    bt.position.set(0, 0.018 * hold, -0.075 * hold);
+    batterLegs.forEach((leg, i) => leg.rotation.set(0, 0, i === 1 ? -0.035 * hold : 0.015 * hold));
+  } else if (sw) {
     const elapsed = now - sw.t;
     const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
     const load = smooth(elapsed / 170), drive = smooth((elapsed - 170) / 190), finish = smooth((elapsed - 360) / 360);
@@ -1423,10 +1434,21 @@ function tick(now) {
     bat.rotation.y = elapsed < 170 ? -0.25 * load : elapsed < 360 ? -0.25 + 0.58 * drive : 0.33 - 0.25 * finish;
     bat.rotation.z = elapsed < 170 ? BAT_READY - 0.62 * recoil : elapsed < 360 ? BAT_READY - 0.62 + 2.05 * drive : BAT_READY + 1.43 - 0.5 * finish;
     up.rotation.y = elapsed < 170 ? -0.05 - 0.14 * load : elapsed < 360 ? -0.19 + 0.36 * drive : 0.17 - 0.09 * finish;
+    up.rotation.x = elapsed < 170 ? -0.015 * load : elapsed < 360 ? -0.015 + 0.075 * drive : 0.06 - 0.04 * finish;
     bt.rotation.y = elapsed < 170 ? -0.05 * load : elapsed < 360 ? -0.05 + 0.15 * drive : 0.10 - 0.04 * finish;
+    bt.position.z = elapsed < 170 ? -0.025 * load : elapsed < 360 ? -0.025 + 0.075 * drive : 0.05 - 0.035 * finish;
+    bt.position.y = elapsed < 170 ? 0.008 * load : elapsed < 360 ? 0.008 + 0.022 * drive : 0.03 - 0.02 * finish;
     const frontLeg = batterSide === 'R' ? batterLegs[1] : batterLegs[0];
     frontLeg.rotation.z = elapsed < 170 ? 0.03 * load : elapsed < 360 ? 0.03 - 0.13 * drive : -0.10 + 0.07 * finish;
+  } else if (buntMode && S.mode === 'bat') {
+    bt.position.set(0, 0, 0);
+    bt.rotation.set(0, 0, 0);
+    batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
+    up.rotation.set(-0.05, 0.04, 0);
+    swingArms.rotation.set(-0.24, 0.08, 0.02);
+    bat.rotation.set(-1.02, 0, -0.08);
   } else {
+    bt.position.set(0, 0, 0);
     bt.rotation.set(0, 0, 0);
     batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
     up.rotation.set(0, 0.03, 0);
