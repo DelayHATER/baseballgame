@@ -1355,13 +1355,19 @@ function resolve(off) {
     const contactScale = hitter && !buntMode ? 1 - (hitter.contact - 3) * 0.035 : 1;
     const powerBonus = hitter && !buntMode ? (hitter.power - 3) * 2.4 : 0;
     pciInsideContact = false; pciOutsideContact = false;
+    let pciOutsideGap = 0, pciOutsideWhiffChance = 0.78;
     let q = Math.max(0, Math.abs(off) * contactScale - powerBonus - (battingMode === 'power' && hitter ? 8 : 0)) + (P.actualInZone ? 0 : 70);
     if (hitter && sw?.user && pciEnabled && !buntMode) {
       const radius = pciRadiusFor(hitter);
       const dx = P.tx * 0.4 - pciCenter.x, dy = 0.82 + P.ty * 0.5 - pciCenter.y;
-      pciInsideContact = Math.hypot(dx, dy) <= radius;
+      const pitchDistance = Math.hypot(dx, dy);
+      pciInsideContact = pitchDistance <= radius;
       pciOutsideContact = !pciInsideContact;
-      q *= pciInsideContact ? 0.76 : 1.15;
+      if (pciOutsideContact) {
+        pciOutsideGap = pitchDistance - radius;
+        pciOutsideWhiffChance = C(0.34 + pciOutsideGap * 1.25, 0.34, 0.92);
+      }
+      q *= pciInsideContact ? 0.76 : 1.08 + C(pciOutsideGap * 0.4, 0, 0.4);
     }
     if (hitter && battingMode === 'contact' && !buntMode) q *= 0.78;
     if (hitter && !buntMode) q *= difficulty === 'easy' ? 0.82 : difficulty === 'hard' ? 1.2 : 1;
@@ -1373,7 +1379,7 @@ function resolve(off) {
       const contactWhiff = battingMode === 'contact' ? weakContactWhiff * 0.15 : weakContactWhiff;
       const modeWhiff = battingMode === 'power' ? 0.12 : battingMode === 'contact' ? 0.003 : 0.015;
       const extraWhiff = hitter && sw?.user && Math.random() < contactWhiff + modeWhiff;
-      if (off < -280 || extraWhiff || (pciOutsideContact && Math.random() < 0.78)) r = 'whiff';
+      if (off < -280 || extraWhiff || (pciOutsideContact && Math.random() < pciOutsideWhiffChance)) r = 'whiff';
       else r = q < 6 ? 'hr' : q < 28 ? 'double' : q < 62 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       if (hitter && battingMode === 'contact' && !buntMode) {
         if (r === 'hr') r = 'double';
@@ -1900,6 +1906,4 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
 
