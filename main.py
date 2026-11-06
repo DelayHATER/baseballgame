@@ -1,5 +1,3 @@
-
-```python
 # BaseBall 3D Pro - Streamlit app
 import streamlit as st
 import streamlit.components.v1 as components
@@ -1055,5 +1053,3 @@ updatePitcherUI(); initABSGrid(); board(); requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-```
