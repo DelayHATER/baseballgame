@@ -319,8 +319,17 @@ let replayBuffer = [];
 let replayIndex = 0;
 let isReplaying = false;
 
+// 홈런 4각도 시네마틱 리플레이 상태
+let hrReplaySequence = null; // { startIdx, endIdx, currentPhase: 0, phaseTimer: 0, camAngles: [...] }
+const HR_REPLAY_ANGLES = [
+  { name: '투수 & 타자 사이', pos: V3(-0.4, 1.45, -8.5), look: V3(-0.2, 1.1, 0.1), fov: 62 },
+  { name: '타자 1인칭', pos: V3(0, 1.55, 1.2), look: V3(0, 0.95, -18.4), fov: 68 },
+  { name: '포수 시점', pos: V3(0, 0.85, 2.1), look: V3(0, 1.0, 0.1), fov: 60 },
+  { name: '타자 앞 아래 로우앵글', pos: V3(-0.6, 0.35, -0.6), look: V3(-0.85, 1.35, 0.1), fov: 65 }
+];
+
 function recordFrame() {
-  if (isReplaying) return;
+  if (isReplaying || hrReplaySequence) return;
   replayBuffer.push({
     ball: { p: ball.position.clone(), v: ball.visible, r: ball.rotation.x },
     fielders: F.map(f => ({ p: f.g.position.clone(), r: f.g.rotation.y, sy: f.g.scale.y })),
@@ -336,6 +345,37 @@ function recordFrame() {
       arm_r: arm.rotation.clone(),
       pit_p: pit.position.clone(), pit_r: pit.rotation.clone()
     }
+  });
+  if (replayBuffer.length > REPLAY_MAX) replayBuffer.shift();
+}
+
+function applyReplayFrame(frame) {
+  ball.position.copy(frame.ball.p); ball.visible = frame.ball.v; ball.rotation.x = frame.ball.r;
+  F.forEach((f, i) => { f.g.position.copy(frame.fielders[i].p); f.g.rotation.y = frame.fielders[i].r; f.g.scale.y = frame.fielders[i].sy; });
+  pool.forEach((r, i) => { r.g.position.copy(frame.runners[i].p); r.g.rotation.y = frame.runners[i].r; r.g.visible = frame.runners[i].v; });
+  bt.position.copy(frame.batter.bt_p); bt.rotation.copy(frame.batter.bt_r);
+  swingArms.rotation.copy(frame.batter.arm_r); bat.position.copy(frame.batter.bat_p); bat.rotation.copy(frame.batter.bat_r);
+  up.rotation.copy(frame.batter.up_r); up.rotation.x = frame.batter.up_x;
+  batterLegs.forEach((l, i) => l.rotation.copy(frame.batter.leg_r[i]));
+  arm.rotation.copy(frame.pitcher.arm_r); pit.position.copy(frame.pitcher.pit_p); pit.rotation.copy(frame.pitcher.pit_r);
+}
+
+function startHomeRunReplays() {
+  if (replayBuffer.length < 35) return;
+  const swingFrameWindow = Math.min(replayBuffer.length - 1, 95);
+  const startIdx = Math.max(0, replayBuffer.length - 1 - swingFrameWindow);
+  const endIdx = replayBuffer.length - 1;
+
+  hrReplaySequence = {
+    startIdx,
+    endIdx,
+    currentIdx: startIdx,
+    phase: 0,
+    speed: 0.38
+  };
+  $('replayOverlay').textContent = `⏺ REPLAY (${HR_REPLAY_ANGLES[0].name})`;
+  $('replayOverlay').hidden = false;
+}
   });
   if (replayBuffer.length > REPLAY_MAX) replayBuffer.shift();
 }
@@ -1046,6 +1086,11 @@ function triggerHomeRunCelebration() {
   flash('홈런! 🎆', '폭죽이 터집니다! 타자가 홈을 향해 세리머니합니다.');
   snd(180, 0.38, 'sawtooth', 0.2, 760);
   [0, 260, 520, 780].forEach(delay => gameTimeout(spawnFirework, delay));
+  
+  // 타구 추적이 끝난 후 다각도 리플레이 시작
+  gameTimeout(() => {
+    startHomeRunReplays();
+  }, 1800);
 }
 
 function overlay(t, p, b) { $('ovT').textContent = t; $('ovP').textContent = p; $('ov').hidden = false; }
@@ -1568,13 +1613,54 @@ function tick() {
   const rawDt = rawNow - lastSysTime;
   lastSysTime = rawNow;
   
+  // 1. 홈런 다각도 시네마틱 리플레이 진행 중
+  if (hrReplaySequence) {
+    const seq = hrReplaySequence;
+    const frame = replayBuffer[Math.floor(seq.currentIdx)];
+    if (frame) applyReplayFrame(frame);
+
+    const angleConfig = HR_REPLAY_ANGLES[seq.phase];
+    catcher.visible = (seq.phase !== 1); // 타자 1인칭일 땐 포수 숨김
+    catcherMask.visible = (seq.phase !== 1);
+
+    cam.position.lerp(angleConfig.pos, 0.12);
+    lookT.copy(angleConfig.look);
+    look.lerp(lookT, 0.12);
+    cam.lookAt(look);
+    if (cam.fov !== angleConfig.fov) {
+      cam.fov = angleConfig.fov;
+      cam.updateProjectionMatrix();
+    }
+
+    seq.currentIdx += seq.speed;
+    if (seq.currentIdx >= seq.endIdx) {
+      seq.phase++;
+      if (seq.phase < HR_REPLAY_ANGLES.length) {
+        seq.currentIdx = seq.startIdx;
+        $('replayOverlay').textContent = `⏺ REPLAY (${HR_REPLAY_ANGLES[seq.phase].name})`;
+      } else {
+        // 4각도 리플레이 완료 후 원래 경기 화면으로 복귀
+        hrReplaySequence = null;
+        $('replayOverlay').hidden = true;
+        $('replayOverlay').textContent = '⏺ REPLAY';
+        catcher.visible = cameraMode !== 'batter';
+        catcherMask.visible = cameraMode !== 'batter';
+      }
+    }
+
+    updateFireworks(0.016);
+    ren.render(scene, cam);
+    requestAnimationFrame(tick);
+    return;
+  }
+
+  // 2. 비디오 판독 버튼을 통한 전체 리플레이 진행 중
   if (isReplaying) {
     const frame = replayBuffer[Math.floor(replayIndex)];
     if (frame) applyReplayFrame(frame);
-    replayIndex += 0.4; // 리플레이 슬로우 모션 재생
+    replayIndex += 0.4;
     if (replayIndex >= replayBuffer.length) replayIndex = 0;
     
-    // 리플레이 카메라 동적 조작
     const frameBall = frame ? frame.ball.p : V3(0, 0, -18);
     cam.position.lerp(V3(frameBall.x * 0.4, Math.max(2, frameBall.y + 12), Math.min(0, frameBall.z + 18)), 0.05);
     cam.lookAt(frameBall);
