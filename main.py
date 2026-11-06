@@ -49,7 +49,7 @@ body {
 #stage canvas { display: block; width: 100%; height: 100%; }
 
 /* 야구장 상황판 다이아몬드 */
-#dia { position: absolute; top: 12px; right: 12px; width: 54px; height: 54px; pointer-events: none; }
+#dia { position: relative; top:auto; right:auto; width:54px; height:54px; flex:none; pointer-events:none; }
 .bs { position: absolute; width: 14px; height: 14px; transform: rotate(45deg); border: 2px solid rgba(255,255,255,0.4); background: rgba(0,0,0,0.4); transition: all 0.2s; }
 .bs.on { background: var(--lamp); border-color: var(--lamp); box-shadow: 0 0 8px var(--lamp); }
 
@@ -112,7 +112,18 @@ body {
 #gameHud .hud-count { display:flex; justify-content:space-around; padding:3px 6px; border-radius:6px; background:rgba(15,23,42,.9); }
 #gameHud .hud-count > div { display:flex; align-items:center; gap:5px; }
 #gameHud .hud-pitcher { display:flex; justify-content:space-between; align-items:center; gap:6px; font-size:10px; }
-@media (max-width:480px) { #gameHud { width:min(190px,58%); right:6px; bottom:46px; padding:5px; gap:4px; } #gameHud #pitchInfo { font-size:10px; } }
+#gameHud .hud-stamina { display:flex; align-items:center; gap:6px; color:#cbd5e1; font-size:9px; }
+.stamina-track { flex:1; height:8px; overflow:hidden; border:1px solid rgba(255,255,255,.24); border-radius:99px; background:rgba(15,23,42,.95); }
+#pitcherStaminaFill { display:block; width:100%; height:100%; border-radius:99px; background:linear-gradient(90deg,#22c55e,#a3e635); transition:width .25s ease,background .25s ease; }
+#pitcherStaminaText { min-width:29px; text-align:right; color:#fbbf24; }
+#gameHud .hud-base { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 6px; border-radius:6px; background:rgba(15,23,42,.9); color:#cbd5e1; font-size:10px; }
+#gameHud .hud-cameras { display:grid; grid-template-columns:1fr 1fr 1fr; gap:3px; }
+#gameHud .hud-cameras button, #videoReviewBtn { color:#e2e8f0; background:#1e293b; border:1px solid #475569; border-radius:5px; padding:4px 3px; font-size:9px; font-weight:700; }
+#gameHud .hud-cameras button.on { color:#0b1726; background:#fbbf24; border-color:#fbbf24; }
+#videoReviewPanel { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); z-index:25; width:min(310px,86%); padding:12px; border:1px solid #64748b; border-radius:10px; background:rgba(2,6,23,.96); color:#f8fafc; box-shadow:0 8px 30px rgba(0,0,0,.6); }
+#videoReviewText { white-space:pre-line; }
+#videoReviewPanel[hidden] { display:none; }
+@media (max-width:480px) { #gameHud { width:min(205px,64%); right:6px; bottom:46px; padding:5px; gap:4px; } #gameHud #pitchInfo { font-size:10px; } #gameHud .hud-cameras button, #videoReviewBtn { font-size:8px; } }
 </style>
 </head>
 <body>
@@ -130,13 +141,12 @@ body {
 
   <!-- 3D 캔버스 영역 -->
   <div id="stage">
-    <div id="dia">
-      <i class="bs" style="left:20px;top:2px"></i>
-      <i class="bs" style="left:38px;top:20px"></i>
-      <i class="bs" style="left:2px;top:20px"></i>
-    </div>
-
     <div id="msg"></div>
+    <div id="videoReviewPanel" hidden>
+      <b class="block text-amber-400 text-base mb-2">📺 비디오 판독</b>
+      <div id="videoReviewText" class="text-xs leading-relaxed text-slate-200">아직 판독할 투구가 없습니다.</div>
+      <button id="closeVideoReview" class="stadium-choice w-full mt-3 py-2">닫기</button>
+    </div>
     <div id="absPanel"><b>ABS 존 · 최근 투구</b><div id="absGrid"></div><span id="absCall">아직 투구 기록 없음</span><button id="challengeBtn" class="stadium-choice" disabled>⚖️ ABS 챌린지 대기 (2)</button></div>
 
     <section id="gameHud">
@@ -150,6 +160,10 @@ body {
         <div><span class="text-red-400 font-bold">O</span><b id="o" class="text-amber-300 font-mono tracking-widest">○○</b></div>
       </div>
       <div class="hud-pitcher"><span class="text-slate-400">투수</span><b id="pitcherStats" class="text-amber-300">구속 A | 변화구 A</b></div>
+      <div class="hud-stamina"><span>체력</span><div class="stamina-track"><i id="pitcherStaminaFill"></i></div><b id="pitcherStaminaText">100%</b></div>
+      <div class="hud-base"><span>베이스 상황</span><div id="dia"><i class="bs" style="left:20px;top:2px"></i><i class="bs" style="left:38px;top:20px"></i><i class="bs" style="left:2px;top:20px"></i></div></div>
+      <div class="hud-cameras"><button type="button" data-camera="plate">포수 뒤</button><button type="button" data-camera="pitcher">투수 뒤</button><button type="button" data-camera="batter">타자 1인칭</button></div>
+      <button id="videoReviewBtn" type="button">📺 비디오 판독</button>
     </section>
 
     <!-- 타이밍 게이지 바 -->
@@ -164,8 +178,8 @@ body {
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
-        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다. 난이도와 이닝도 여기서 고를 수 있습니다.
+        경기 전에 구장을 고르세요. <br>
+        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
@@ -185,12 +199,7 @@ body {
         <button class="stadium-choice" data-innings="5">5이닝</button>
         <button class="stadium-choice" data-innings="9">9이닝</button>
       </div>
-      <div class="setting-row" id="batterSideChoices">
-        <span class="setting-label">타석 방향</span>
-        <button class="stadium-choice on" data-batside="R">우타</button>
-        <button class="stadium-choice" data-batside="L">좌타</button>
-      </div>
-      <div class="text-xs text-slate-300 mt-1">타자 능력치(주력·파워·컨택)는 경기 시작 때 무작위 배정됩니다.</div>
+      <div class="text-xs text-slate-300 mt-1">타자 능력치와 좌·우타는 경기 시작 때 선수별 무작위 배정됩니다.</div>
       <div class="lineup-grid" id="lineupInputs"></div>
       <div class="team-name-inputs">
         <label>내 팀 이름<input id="ownTeamName" maxlength="12" value="우리 팀"></label>
@@ -297,6 +306,8 @@ let teamNames = ['우리 팀', '상대 팀'];
 let difficulty = 'normal';
 let maxInnings = 3;
 let batterSide = 'R';
+let cameraMode = 'plate';
+let lastPitchReview = null;
 let battingMode = 'normal';
 let pciEnabled = false;
 let pciInsideContact = false;
@@ -313,7 +324,7 @@ let battingOrderIndex = 0;
 let batterPAComplete = false;
 let pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
 let opponentPitcherStats = emptyPitcherStats();
-let opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, stats: emptyBatterStats() }));
+let opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }));
 let opponentBatterIndex = 0;
 let batterPAMode = null;
 let challengeCount = 2;
@@ -354,9 +365,10 @@ scene.fog = new THREE.Fog(0x07101c, 80, 320);
 
 const cam = new THREE.PerspectiveCamera(52, 1, 0.3, 600);
 // 홈플레이트 가까운 정면 시점: 존 크기는 그대로 두고 거리로 더 크게 보이게 합니다.
-const camPos = V3(0, 1.45, 3.2);
+const camPos = V3(-0.8, 1.55, 1.8);
 const DEF = V3(0, 0.82, 0.1);
 const look = DEF.clone(), lookT = DEF.clone();
+const liveCamPos = camPos.clone();
 cam.position.copy(camPos);
 
 function rs() {
@@ -691,6 +703,7 @@ function challengeABS() {
   pendingABSCall = null; challengeCount--;
   if (call.called === call.actual) {
     updateABS(P.tx, P.ty, `챌린지 실패 · 판정 유지 (${call.actual === 'strike' ? '스트라이크' : '볼'})`, false);
+    if (lastPitchReview) { lastPitchReview.review = '실패 · 원심 유지'; renderVideoReview(); }
     flash('챌린지 실패', `원심 판정 유지 · 남은 횟수 ${challengeCount}`);
     board();
     return;
@@ -698,6 +711,7 @@ function challengeABS() {
   if (call.called === 'strike') { S.strikes = Math.max(0, S.strikes - 1); S.balls++; }
   else { S.balls = Math.max(0, S.balls - 1); S.strikes++; }
   updateABS(P.tx, P.ty, `챌린지 성공 · ${call.actual === 'strike' ? '스트라이크' : '볼'}`, false);
+  if (lastPitchReview) { lastPitchReview.called = call.actual; lastPitchReview.review = '성공 · 판정 번복'; renderVideoReview(); }
   flash('판정 번복!', `ABS 챌린지 성공 · 남은 횟수 ${challengeCount}`);
   snd(880, 0.14, 'sine', 0.2, 1250);
   board();
@@ -766,6 +780,7 @@ function finishBatterPA() {
     batterStats = lineup[battingOrderIndex].stats;
   } else if (batterPAMode === 'pitch') opponentBatterIndex = (opponentBatterIndex + 1) % opponentLineup.length;
   batterPAComplete = false; batterPAMode = null;
+  syncBatterAppearance();
 }
 
 function sim(p0, v0, dur) {
@@ -911,6 +926,7 @@ function board() {
   $('o').textContent = dots(S.outs, 2);
   document.querySelectorAll('.bs').forEach((e, i) => e.classList.toggle('on', !!S.bases[[1, 0, 2][i]]));
 
+  document.querySelectorAll('[data-camera]').forEach(button => button.classList.toggle('on', button.dataset.camera === cameraMode));
   const canSprint = (S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace)) || (S.mode === 'pitch' && !!pendingFieldingPlay);
   $('mobileSteal').disabled = !canSprint;
   const challengeButton = $('challengeBtn');
@@ -1035,6 +1051,7 @@ function walk(t0) {
 
 function changeSide() {
   S.outs = 0; clearRun(); buntMode = false; S.h++; S.mode = S.mode === 'bat' ? 'pitch' : 'bat';
+  syncBatterAppearance();
   const hm = S.fm === 'bat' ? 1 : 0;
   if (S.h === 2 * maxInnings - 1 && S.sc[hm] > S.sc[1 - hm]) S.h = 2 * maxInnings;
   $('types').hidden = S.mode !== 'pitch' || S.h >= 2 * maxInnings;
@@ -1428,6 +1445,13 @@ function resolve(off) {
     else setTimeout(hitSound, CONTACT);
   }
 
+  lastPitchReview = {
+    pitchName: TYPES[S.pt].name, speedKmh: P.speedKmh,
+    called: off === null ? r : '스윙',
+    actual: P.actualInZone ? 'strike' : 'ball', tx: P.tx, ty: P.ty, review: ''
+  };
+  renderVideoReview();
+
   if (SPD[r]) {
     if (r !== 'foul' && r !== 'hr') setTimeout(() => { bt.visible = false; }, 560);
     const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
@@ -1559,13 +1583,31 @@ function togglePCI() {
   flash(pciEnabled ? '조준 원 ON' : '조준 원 OFF', pciEnabled ? '마우스로 원을 옮긴 뒤, 원 안에 들어온 공을 노리세요.' : '조준 보정 없이 타격합니다.');
 }
 
-function setBatterSide(side) {
-  batterSide = side === 'L' ? 'L' : 'R';
+function syncBatterAppearance() {
+  const currentHitter = S.mode === 'bat' ? lineup[battingOrderIndex] : opponentLineup[opponentBatterIndex];
+  batterSide = currentHitter?.side || 'R';
   bt.scale.x = batterSide === 'L' ? -1 : 1;
-  document.querySelectorAll('#batterSideChoices [data-batside]').forEach(button => button.classList.toggle('on', button.dataset.batside === batterSide));
   if (P) updatePitchInfo(P);
   else $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`;
 }
+
+function selectCamera(mode) {
+  if (!['plate', 'pitcher', 'batter'].includes(mode)) return;
+  cameraMode = mode;
+  document.querySelectorAll('[data-camera]').forEach(button => button.classList.toggle('on', button.dataset.camera === cameraMode));
+  board();
+}
+
+function renderVideoReview() {
+  const review = lastPitchReview;
+  const box = $('videoReviewText');
+  if (!review) { box.textContent = '아직 판독할 투구가 없습니다. 투구 결과가 나오면 여기에 구종, 구속, 존 위치와 판정이 표시됩니다.'; return; }
+  const pitchCall = review.called === 'strike' ? '스트라이크' : review.called === 'ball' ? '볼' : review.called;
+  const actual = review.actual === 'strike' ? '스트라이크' : '볼';
+  box.textContent = `${review.pitchName} · ${review.speedKmh} km/h\n심판 판정: ${pitchCall}\nABS 기준: ${actual}\n존 위치: 좌우 ${review.tx.toFixed(2)} · 높낮이 ${review.ty.toFixed(2)}${review.review ? `\n${review.review}` : ''}`;
+}
+
+function openVideoReview() { renderVideoReview(); $('videoReviewPanel').hidden = false; }
 
 function start(m) {
   clearTimeout(timer); cancelPitchCharge(); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
@@ -1584,13 +1626,17 @@ function start(m) {
       speed: 1 + Math.floor(Math.random() * 5),
       power: 1 + Math.floor(Math.random() * 5),
       contact: 1 + Math.floor(Math.random() * 5),
+      side: Math.random() < 0.5 ? 'L' : 'R',
       stats: emptyBatterStats()
     };
   });
   battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false;
   opponentPitcherStats = emptyPitcherStats();
-  opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, stats: emptyBatterStats() }));
+  opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }));
   opponentBatterIndex = 0; batterPAMode = null;
+  lastPitchReview = null;
+  $('videoReviewPanel').hidden = true;
+  syncBatterAppearance();
   pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
   pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
   usedPitcherIds = new Set();
@@ -1822,10 +1868,25 @@ function tick(now) {
   if (vis) { shd.position.set(ball.position.x, 0.06, ball.position.z); shd.scale.setScalar(1 / (1 + ball.position.y * 0.12)); }
   
   // 카메라 워킹
-  if (follow) lookT.set(ball.position.x * 0.9, Math.max(1, ball.position.y * 0.8), Math.min(ball.position.z, -6));
-  else lookT.copy(DEF);
+  const raceRunner = stealRace?.runner || batterRace?.runner || null;
+  if (raceRunner?.on) lookT.set(raceRunner.g.position.x, Math.max(0.9, raceRunner.g.position.y + 0.9), raceRunner.g.position.z);
+  else if (follow) lookT.set(ball.position.x * 0.9, Math.max(1, ball.position.y * 0.8), Math.min(ball.position.z, -6));
+  else {
+    if (cameraMode === 'pitcher') lookT.set(0, 0.9, 0.1);
+    else if (cameraMode === 'batter') lookT.set(0, 0.95, -18.4);
+    else lookT.copy(DEF);
+  }
   look.lerp(lookT, 1 - Math.pow(0.02, dt));
-  cam.position.set(camPos.x + (follow ? look.x * 0.08 : 0), camPos.y, camPos.z);
+  let desiredCamPos = camPos.clone(), fov = 60;
+  if (cameraMode === 'pitcher') { desiredCamPos.set(0.95, 2.1, -21.1); fov = 52; }
+  else if (cameraMode === 'batter') { desiredCamPos.set((batterSide === 'R' ? -1 : 1) * 1.4, 1.6, 0.55); fov = 72; }
+  if (raceRunner?.on) {
+    desiredCamPos.set(raceRunner.g.position.x - 2.6, 2.5, raceRunner.g.position.z + 4.2);
+    fov = 58;
+  }
+  if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+  liveCamPos.lerp(desiredCamPos, 1 - Math.pow(0.015, dt));
+  cam.position.copy(liveCamPos);
   cam.lookAt(look);
 
   updateFireworks(dt);
@@ -1836,8 +1897,12 @@ function tick(now) {
 /* ---------- 이벤트 리스너 및 투수 교체 모달 ---------- */
 function updatePitcherUI() {
   const p = PITCHERS[currentPitcherIdx];
+  const staminaPct = C(pitcherStamina, 0, 100);
   $('pitcherName').textContent = p.name;
-  $('pitcherStats').textContent = `${p.formName} | 구속:${Math.round(p.speed*140)}km | 체력:${Math.round(pitcherStamina)}%`;
+  $('pitcherStats').textContent = `${p.formName} · 구속 ${Math.round(p.speed*140)}km/h`;
+  $('pitcherStaminaFill').style.width = `${staminaPct}%`;
+  $('pitcherStaminaFill').style.background = staminaPct < 25 ? 'linear-gradient(90deg,#dc2626,#f87171)' : staminaPct < 55 ? 'linear-gradient(90deg,#d97706,#fbbf24)' : 'linear-gradient(90deg,#22c55e,#a3e635)';
+  $('pitcherStaminaText').textContent = `${Math.round(staminaPct)}%`;
 }
 
 function openPitcherModal() {
@@ -1882,7 +1947,7 @@ function openPitcherModal() {
 
 stage.addEventListener('pointerdown', e => {
   // 시작 설정 오버레이 안의 입력·버튼 클릭은 경기 캔버스 조작으로 전달하지 않습니다.
-  if (e.target.closest('#ov, #gameHud, #absPanel, #timingWrap, button, input, select, textarea, label')) return;
+  if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, button, input, select, textarea, label')) return;
   const touchInput = e.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches;
   if (touchInput && S.mode === 'pitch') {
     e.preventDefault();
@@ -1918,6 +1983,9 @@ $('mobilePitchShift').addEventListener('pointercancel', e => { releasePitchCharg
 $('buntBtn').addEventListener('click', toggleBunt);
 $('pciBtn').addEventListener('click', togglePCI);
 document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(button => button.addEventListener('click', () => setBattingMode(button.dataset.battingMode)));
+document.querySelectorAll('[data-camera]').forEach(button => button.addEventListener('click', () => selectCamera(button.dataset.camera)));
+$('videoReviewBtn').addEventListener('click', openVideoReview);
+$('closeVideoReview').addEventListener('click', () => { $('videoReviewPanel').hidden = true; });
 $('changePitcherBtn').addEventListener('click', openPitcherModal);
 $('closePitcherModal').addEventListener('click', () => { 
   $('pitcherModal').hidden = true; 
@@ -1938,7 +2006,6 @@ document.querySelectorAll('#inningChoices [data-innings]').forEach(button => but
   document.querySelectorAll('#inningChoices [data-innings]').forEach(b => b.classList.toggle('on', b === button));
   drawScoreboard();
 }));
-document.querySelectorAll('#batterSideChoices [data-batside]').forEach(button => button.addEventListener('click', () => setBatterSide(button.dataset.batside)));
 $('challengeBtn').addEventListener('click', challengeABS);
 
 addEventListener('keydown', e => {
@@ -1968,5 +2035,9 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
+
+
 
 
