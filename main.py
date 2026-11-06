@@ -1,6 +1,4 @@
 
----
-
 ```python
 # BaseBall 3D Pro - Streamlit app
 import streamlit as st
