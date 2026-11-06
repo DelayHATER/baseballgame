@@ -1,4 +1,3 @@
-# BaseBall 3D Pro - Streamlit app
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -41,7 +40,7 @@ body {
 #stage {
   position: relative; width: 100%; aspect-ratio: 16/10;
   border-radius: 12px; overflow: hidden; background: #000;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+  box-shadow: 0 10px 40px rgba(0,0,0,0.9);
 }
 @media (max-aspect-ratio: 1/1) {
   #stage { aspect-ratio: 4/5; max-height: 55vh; }
@@ -120,9 +119,10 @@ body {
 #gameHud .hud-cameras { display:grid; grid-template-columns:1fr 1fr 1fr; gap:3px; }
 #gameHud .hud-cameras button, #videoReviewBtn { color:#e2e8f0; background:#1e293b; border:1px solid #475569; border-radius:5px; padding:4px 3px; font-size:9px; font-weight:700; }
 #gameHud .hud-cameras button.on { color:#0b1726; background:#fbbf24; border-color:#fbbf24; }
-#videoReviewPanel { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); z-index:25; width:min(310px,86%); padding:12px; border:1px solid #64748b; border-radius:10px; background:rgba(2,6,23,.96); color:#f8fafc; box-shadow:0 8px 30px rgba(0,0,0,.6); }
+#videoReviewPanel { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); z-index:40; width:min(310px,86%); padding:12px; border:1px solid #64748b; border-radius:10px; background:rgba(2,6,23,.96); color:#f8fafc; box-shadow:0 8px 30px rgba(0,0,0,.6); }
 #videoReviewText { white-space:pre-line; }
 #videoReviewPanel[hidden] { display:none; }
+#replayOverlay { position: absolute; top: 16px; left: 16px; z-index: 35; font-family: 'Black Han Sans', sans-serif; }
 @media (max-width:480px) { #gameHud { width:min(205px,64%); right:6px; bottom:46px; padding:5px; gap:4px; } #gameHud #pitchInfo { font-size:10px; } #gameHud .hud-cameras button, #videoReviewBtn { font-size:8px; } }
 </style>
 </head>
@@ -142,10 +142,11 @@ body {
   <!-- 3D 캔버스 영역 -->
   <div id="stage">
     <div id="msg"></div>
+    <div id="replayOverlay" class="text-red-500 text-3xl animate-pulse" hidden>⏺ REPLAY</div>
     <div id="videoReviewPanel" hidden>
-      <b class="block text-amber-400 text-base mb-2">📺 비디오 판독</b>
-      <div id="videoReviewText" class="text-xs leading-relaxed text-slate-200">아직 판독할 투구가 없습니다.</div>
-      <button id="closeVideoReview" class="stadium-choice w-full mt-3 py-2">닫기</button>
+      <b class="block text-amber-400 text-base mb-2">📺 비디오 판독 / 리플레이</b>
+      <div id="videoReviewText" class="text-xs leading-relaxed text-slate-200 mb-2">아직 판독할 투구가 없습니다.</div>
+      <button id="closeVideoReview" class="stadium-choice w-full mt-3 py-2 bg-red-600 border-red-500 hover:bg-red-500">리플레이 종료 및 닫기</button>
     </div>
     <div id="absPanel"><b>ABS 존 · 최근 투구</b><div id="absGrid"></div><span id="absCall">아직 투구 기록 없음</span><button id="challengeBtn" class="stadium-choice" disabled>⚖️ ABS 챌린지 대기 (2)</button></div>
 
@@ -163,7 +164,7 @@ body {
       <div class="hud-stamina"><span>체력</span><div class="stamina-track"><i id="pitcherStaminaFill"></i></div><b id="pitcherStaminaText">100%</b></div>
       <div class="hud-base"><span>베이스 상황</span><div id="dia"><i class="bs" style="left:20px;top:2px"></i><i class="bs" style="left:38px;top:20px"></i><i class="bs" style="left:2px;top:20px"></i></div></div>
       <div class="hud-cameras"><button type="button" data-camera="plate">포수 뒤</button><button type="button" data-camera="pitcher">투수 뒤</button><button type="button" data-camera="batter">타자 1인칭</button></div>
-      <button id="videoReviewBtn" type="button">📺 비디오 판독</button>
+      <button id="videoReviewBtn" type="button">📺 리플레이 및 비디오 판독</button>
     </section>
 
     <!-- 타이밍 게이지 바 -->
@@ -178,8 +179,8 @@ body {
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        경기 전에 구장을 고르세요. <br>
-        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다.
+        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
+        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다. 난이도와 이닝도 여기서 고를 수 있습니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
@@ -269,12 +270,6 @@ $('lineupInputs').innerHTML = Array.from({ length: 9 }, (_, i) => `
   <div class="lineup-card"><label>${i + 1}번 타자<input id="lineupName${i}" maxlength="12" value="${i + 1}번 타자"></label></div>`).join('');
 const R = (a, b) => a + Math.random() * (b - a);
 const C = (v, a, b) => Math.max(a, Math.min(b, v));
-function pciRadiusFor(hitter, mode = battingMode) {
-  const rating = hitter?.contact || 3;
-  const base = 0.12 + ((rating - 1) / 4) * 0.12;
-  const modeScale = mode === 'contact' ? 1.35 : mode === 'power' ? 0.82 : 1.12;
-  return base * modeScale;
-}
 
 if (!window.THREE) {
   $('ovP').textContent = '3D 라이브러리를 불러오지 못했습니다. 네트워크를 확인하세요.';
@@ -301,6 +296,62 @@ let pitcherStamina = 100;
 let pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
 function pitcherFatigueFactor() { return 0.72 + 0.28 * C(pitcherStamina / 100, 0, 1); }
 function savePitcherStamina() { pitcherStaminaById[currentPitcherIdx] = pitcherStamina; }
+
+/* ---------- 게임 시간 및 스케줄링 관리 (슬로우 모션) ---------- */
+let timeScale = 1.0;
+let logicalTime = performance.now();
+let lastSysTime = performance.now();
+let scheduledTasks = [];
+let hrCamActive = false;
+
+function gameTimeout(cb, delay) {
+  const task = { cb, triggerAt: logicalTime + delay, active: true };
+  scheduledTasks.push(task);
+  return task;
+}
+function clearGameTimeout(task) {
+  if (task) task.active = false;
+}
+
+/* ---------- 비디오 판독 / 리플레이 ---------- */
+const REPLAY_MAX = 420;
+let replayBuffer = [];
+let replayIndex = 0;
+let isReplaying = false;
+
+function recordFrame() {
+  if (isReplaying) return;
+  replayBuffer.push({
+    ball: { p: ball.position.clone(), v: ball.visible, r: ball.rotation.x },
+    fielders: F.map(f => ({ p: f.g.position.clone(), r: f.g.rotation.y, sy: f.g.scale.y })),
+    runners: pool.map(r => ({ p: r.g.position.clone(), r: r.g.rotation.y, v: r.g.visible })),
+    batter: {
+      bt_p: bt.position.clone(), bt_r: bt.rotation.clone(),
+      arm_r: swingArms.rotation.clone(),
+      bat_p: bat.position.clone(), bat_r: bat.rotation.clone(),
+      up_r: up.rotation.clone(), up_x: up.rotation.x,
+      leg_r: batterLegs.map(l => l.rotation.clone())
+    },
+    pitcher: {
+      arm_r: arm.rotation.clone(),
+      pit_p: pit.position.clone(), pit_r: pit.rotation.clone()
+    }
+  });
+  if (replayBuffer.length > REPLAY_MAX) replayBuffer.shift();
+}
+
+function applyReplayFrame(frame) {
+  ball.position.copy(frame.ball.p); ball.visible = frame.ball.v; ball.rotation.x = frame.ball.r;
+  F.forEach((f, i) => { f.g.position.copy(frame.fielders[i].p); f.g.rotation.y = frame.fielders[i].r; f.g.scale.y = frame.fielders[i].sy; });
+  pool.forEach((r, i) => { r.g.position.copy(frame.runners[i].p); r.g.rotation.y = frame.runners[i].r; r.g.visible = frame.runners[i].v; });
+  bt.position.copy(frame.batter.bt_p); bt.rotation.copy(frame.batter.bt_r);
+  swingArms.rotation.copy(frame.batter.arm_r); bat.position.copy(frame.batter.bat_p); bat.rotation.copy(frame.batter.bat_r);
+  up.rotation.copy(frame.batter.up_r); up.rotation.x = frame.batter.up_x;
+  batterLegs.forEach((l, i) => l.rotation.copy(frame.batter.leg_r[i]));
+  arm.rotation.copy(frame.pitcher.arm_r); pit.position.copy(frame.pitcher.pit_p); pit.rotation.copy(frame.pitcher.pit_r);
+}
+
+/* ---------- 게임 전역 변수 ---------- */
 let selectedStadium = 0;
 let teamNames = ['우리 팀', '상대 팀'];
 let difficulty = 'normal';
@@ -330,7 +381,6 @@ let batterPAMode = null;
 let challengeCount = 2;
 let pendingABSCall = null;
 
-/* ---------- 게임 상태 ---------- */
 const CONTACT = 64, V3 = (x,y,z) => new THREE.Vector3(x,y,z);
 const BASE_RUN_SUCCESS_SCALE = 0.6;
 const S = {
@@ -338,11 +388,10 @@ const S = {
   sc: [0, 0], outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0,
   bases: [0, 0, 0]
 };
-let P = null, sw = null, hit = null, timer = 0, ac = null, last = performance.now();
+let P = null, sw = null, hit = null, timer = 0, ac = null;
 let timingAnimId = null;
 let pitchCharge = null;
 
-// 도루 관련 변수
 let isStealing = false;
 let stealSpeedBonus = 0;
 let activeStealRunner = null;
@@ -354,9 +403,10 @@ let buntMode = false;
 
 /* ---------- Three.js 3D 그래픽 설정 ---------- */
 const stage = $('stage');
-const ren = new THREE.WebGLRenderer({ antialias: true });
-ren.setPixelRatio(Math.min(devicePixelRatio, 2));
+const ren = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+ren.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 ren.shadowMap.enabled = true;
+ren.shadowMap.type = THREE.PCFSoftShadowMap; // 부드러운 그림자 품질 향상
 stage.prepend(ren.domElement);
 
 const scene = new THREE.Scene();
@@ -364,7 +414,6 @@ scene.background = new THREE.Color(0x07101c);
 scene.fog = new THREE.Fog(0x07101c, 80, 320);
 
 const cam = new THREE.PerspectiveCamera(52, 1, 0.3, 600);
-// 홈플레이트 가까운 정면 시점: 존 크기는 그대로 두고 거리로 더 크게 보이게 합니다.
 const camPos = V3(-0.8, 1.55, 1.8);
 const DEF = V3(0, 0.82, 0.1);
 const look = DEF.clone(), lookT = DEF.clone();
@@ -381,14 +430,18 @@ addEventListener('resize', rs);
 new ResizeObserver(rs).observe(stage);
 rs();
 
-// 조명
-scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x14301f, 0.7));
-const sun = new THREE.DirectionalLight(0xfff0d0, 1.2);
-sun.position.set(14, 30, 16);
+// 조명 개선
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x14301f, 0.55));
+const sun = new THREE.DirectionalLight(0xfff5e6, 1.3);
+sun.position.set(20, 40, 20);
 sun.target.position.set(0, 0, -8);
 sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
-Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 5, far: 80 });
+sun.shadow.camera.left = -20; sun.shadow.camera.right = 20;
+sun.shadow.camera.top = 20; sun.shadow.camera.bottom = -20;
+sun.shadow.camera.near = 5; sun.shadow.camera.far = 100;
+sun.shadow.bias = -0.0005;
 scene.add(sun, sun.target);
 
 /* 텍스처 및 필드 메시 생성 */
@@ -399,11 +452,12 @@ function tex(w, h, fn, rep) {
   if (rep) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); }
   return t;
 }
-const mat = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.85 : r });
+const mat = (c, r) => new THREE.MeshStandardMaterial({ color: c, roughness: r == null ? 0.75 : r });
 function mk(geo, m, x, y, z, parent, sh) {
   const o = new THREE.Mesh(geo, m);
   o.position.set(x, y, z);
   o.castShadow = sh !== false;
+  o.receiveShadow = true;
   (parent || scene).add(o);
   return o;
 }
@@ -420,20 +474,19 @@ const grass = tex(256, 256, (g, w, h) => {
   g.fillStyle = '#2b6e45'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#307a4c'; g.fillRect(0, 0, w, h / 2);
   for (let i = 0; i < 2000; i++) {
-    g.fillStyle = 'rgba(0,0,0,' + R(0.02, 0.07) + ')';
+    g.fillStyle = 'rgba(0,0,0,' + R(0.02, 0.08) + ')';
     g.fillRect(R(0, w), R(0, h), 2, 2);
   }
 }, [34, 34]);
 
-const fieldMat = new THREE.MeshStandardMaterial({ map: grass, roughness: 1 });
+const fieldMat = new THREE.MeshStandardMaterial({ map: grass, roughness: 0.9, metalness: 0.05 });
 flat(new THREE.PlaneGeometry(500, 500), fieldMat, 0, 0, -100);
 const dirt = mat(0x8a5a3b, 1);
 flat(new THREE.PlaneGeometry(33, 33), dirt, 0, 0.02, -19.4, Math.PI / 4);
-flat(new THREE.PlaneGeometry(21, 21), new THREE.MeshStandardMaterial({ map: grass, roughness: 1 }), 0, 0.03, -19.4, Math.PI / 4);
+flat(new THREE.PlaneGeometry(21, 21), new THREE.MeshStandardMaterial({ map: grass, roughness: 0.9 }), 0, 0.03, -19.4, Math.PI / 4);
 flat(new THREE.CircleGeometry(7.5, 40), dirt, 0, 0.04, 0);
 
-const mound = mk(new THREE.CylinderGeometry(2.7, 3.3, 0.28, 32), dirt, 0, 0.14, -18.4, scene, false);
-mound.receiveShadow = true;
+const mound = mk(new THREE.CylinderGeometry(2.7, 3.3, 0.28, 32), dirt, 0, 0.14, -18.4, scene, true);
 mk(new THREE.BoxGeometry(0.6, 0.05, 0.15), mat(0xffffff), 0, 0.3, -18.4, scene, false);
 const chalk = new THREE.MeshBasicMaterial({ color: 0xf2f2ec });
 [[1, Math.PI / 4], [-1, 3 * Math.PI / 4]].forEach(([s, a]) => {
@@ -441,14 +494,14 @@ const chalk = new THREE.MeshBasicMaterial({ color: 0xf2f2ec });
   l.rotation.y = a;
 });
 [[19.4, -19.4], [0, -38.8], [-19.4, -19.4]].forEach(([x, z]) => {
-  const b = mk(new THREE.BoxGeometry(0.55, 0.12, 0.55), mat(0xffffff), x, 0.08, z, scene, false);
+  const b = mk(new THREE.BoxGeometry(0.55, 0.12, 0.55), mat(0xffffff), x, 0.08, z, scene, true);
   b.rotation.y = Math.PI / 4;
 });
 
 const ps = new THREE.Shape();
 [[-.24, 0], [.24, 0], [.24, -.24], [0, -.48], [-.24, -.24]].forEach(([x, y], i) => i ? ps.lineTo(x, y) : ps.moveTo(x, y));
 const plate = new THREE.Mesh(new THREE.ExtrudeGeometry(ps, { depth: 0.04, bevelEnabled: false }), mat(0xffffff));
-plate.rotation.x = -Math.PI / 2; plate.position.set(0, 0.05, -0.1); scene.add(plate);
+plate.rotation.x = -Math.PI / 2; plate.position.set(0, 0.05, -0.1); plate.receiveShadow = true; scene.add(plate);
 
 const zone = new THREE.LineLoop(
   new THREE.BufferGeometry().setFromPoints([V3(-0.384, 0.34, 0.1), V3(0.384, 0.34, 0.1), V3(0.384, 1.30, 0.1), V3(-0.384, 1.30, 0.1)]),
@@ -461,7 +514,6 @@ const TS = Math.PI * 1.5 - 1.05, TL = 2.1;
 const wall = new THREE.Mesh(new THREE.CylinderGeometry(100, 100, 4, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x14402e, roughness: 0.8, side: THREE.DoubleSide }));
 wall.position.y = 2; scene.add(wall);
 
-// 관중석, 전광판, 조명탑과 돔 지붕으로 구장마다 분위기를 구분합니다.
 const stands = new THREE.Mesh(new THREE.CylinderGeometry(119, 119, 16, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x26364c, roughness: 0.88, side: THREE.DoubleSide }));
 stands.position.y = 8; scene.add(stands);
 const crowdPositions = [], crowdColors = [], crowdPalette = [0xe2e8f0, 0xfbbf24, 0x38bdf8, 0xf87171, 0x34d399, 0xc4b5fd, 0xffffff];
@@ -522,8 +574,7 @@ function applyStadium(index) {
   scene.background.setHex(stadium.sky); scene.fog.color.setHex(stadium.fog);
   stands.material.color.setHex(stadium.seats); wall.material.color.setHex(stadium.wall);
   fieldMat.color.setHex(stadium.grass); boardFace.material.color.setHex(0xffffff);
-  dome.visible = stadium.dome;
-  domeRibs.visible = stadium.dome;
+  dome.visible = stadium.dome; domeRibs.visible = stadium.dome;
   stadiumLights.forEach(light => light.material.color.setHex(index === 1 ? 0xdbeafe : 0xfff7d6));
   document.querySelectorAll('#stadiumChoices .stadium-choice').forEach((button, i) => button.classList.toggle('on', i === index));
   drawScoreboard();
@@ -555,7 +606,9 @@ function figure(shirt, cap, x, z) {
   mk(new THREE.CylinderGeometry(0.2, 0.17, 0.62, 10), m1, 0, 1.15, 0, g);
   mk(new THREE.SphereGeometry(0.13, 12, 10), mat(0xe8c9a0), 0, 1.6, 0, g);
   mk(new THREE.SphereGeometry(0.14, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), mat(cap), 0, 1.62, 0, g);
-  g.position.set(x, 0, z); scene.add(g); return g;
+  g.position.set(x, 0, z);
+  g.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+  scene.add(g); return g;
 }
 const SPDF = 5.8, B1 = V3(19.4, 0, -19.4), B1T = V3(19.4, 1.2, -19.4), MT = V3(0, 1.2, -18.4), B2T = V3(0, 1.2, -38.8), B2P = V3(0, 0, -38.8);
 const F = [[17, -20], [7, -31], [-7, -31], [-17, -20], [-40, -62], [0, -76], [40, -62]].map(([x, z]) => {
@@ -563,7 +616,7 @@ const F = [[17, -20], [7, -31], [-7, -31], [-17, -20], [-40, -62], [0, -76], [40
   return { g, home: V3(x, 0, z) };
 });
 function resetField() {
-  F.forEach(f => { f.g.position.copy(f.home); f.g.rotation.y = Math.atan2(-f.home.x, 5 - f.home.z); });
+  F.forEach(f => { f.g.position.copy(f.home); f.g.rotation.y = Math.atan2(-f.home.x, 5 - f.home.z); f.g.scale.y = 1; });
 }
 const BP = [V3(0, 0, 0.6), V3(19.4, 0, -19.4), V3(0, 0, -38.8), V3(-19.4, 0, -19.4), V3(0, 0, 0.6)];
 const pool = [...Array(8)].map(() => {
@@ -599,6 +652,10 @@ const swingArms = new THREE.Group(); swingArms.position.set(0, 0.375, 0); up.add
 const BAT_READY = -0.72;
 const bat = new THREE.Group(); bat.position.set(0.28, -0.025, -0.08); bat.rotation.z = BAT_READY; swingArms.add(bat);
 mk(new THREE.CylinderGeometry(0.05, 0.02, 1, 10), mat(0xc99a5b, 0.6), 0, 0.5, 0, bat);
+bt.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+pit.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+arm.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
+catcher.traverse(c => { if(c.isMesh) { c.castShadow = true; c.receiveShadow = true; } });
 
 /* 야구공 */
 const seam = tex(128, 64, (g, w, h) => {
@@ -630,6 +687,13 @@ const pciCenter = aim.clone();
 const pciRing = new THREE.Mesh(new THREE.TorusGeometry(1, 0.012, 8, 48), new THREE.MeshBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.92, depthTest: false }));
 pciRing.visible = false; pciRing.renderOrder = 10; scene.add(pciRing);
 
+function pciRadiusFor(hitter, mode = battingMode) {
+  const rating = hitter?.contact || 3;
+  const base = 0.12 + ((rating - 1) / 4) * 0.12;
+  const modeScale = mode === 'contact' ? 1.35 : mode === 'power' ? 0.82 : 1.12;
+  return base * modeScale;
+}
+
 function aimAt(e) {
   const r = stage.getBoundingClientRect();
   mv.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
@@ -660,7 +724,6 @@ function refreshPitchButtons() {
 }
 
 function zoneCall(tx, ty) {
-  // 이전 기본 존(±0.9)보다는 조금 넓고, 직전 존(±1.0)보다는 살짝 좁게 잡습니다.
   const actual = Math.abs(tx) <= 0.96 && Math.abs(ty) <= 0.96;
   const edge = Math.min(Math.abs(Math.abs(tx) - 0.96), Math.abs(Math.abs(ty) - 0.96));
   const challengeable = edge <= 0.20;
@@ -680,7 +743,6 @@ function initABSGrid() {
 
 function updateABS(tx, ty, callText, wrong = false) {
   initABSGrid();
-  // ABS 그리드 중앙 5칸의 경계를 ±0.96 판정 존과 일치시킵니다.
   const col = C(Math.floor((tx + 1.344) / 2.688 * 7), 0, 6);
   const row = 6 - C(Math.floor((ty + 1.344) / 2.688 * 7), 0, 6);
   const cell = row * 7 + col;
@@ -698,7 +760,7 @@ function updatePitchInfo(pitchData) {
 }
 
 function challengeABS() {
-  if (!pendingABSCall || challengeCount <= 0 || performance.now() > pendingABSCall.expires) return;
+  if (!pendingABSCall || challengeCount <= 0 || logicalTime > pendingABSCall.expires) return;
   const call = pendingABSCall;
   pendingABSCall = null; challengeCount--;
   if (call.called === call.actual) {
@@ -718,7 +780,6 @@ function challengeABS() {
 }
 
 function currentPitcherStats() { return pitcherStatsById[currentPitcherIdx]; }
-function battingAverage() { return batterStats.ab ? batterStats.hits / batterStats.ab : 0; }
 function totalBatterStats(players) {
   return players.reduce((sum, player) => {
     for (const key of ['pa','ab','hits','walks','hbp','totalBases','runs','rbi']) sum[key] += player.stats[key] || 0;
@@ -751,11 +812,12 @@ function updateStatsUI() {
   const teamWHIP = teamIP ? ((teamPitch.walks + teamPitch.hits) / teamIP).toFixed(2) : '—';
   $('batterStats').innerHTML = `AVG ${teamAvg.toFixed(3)} · OBP ${teamOBP.toFixed(3)} · SLG ${teamSLG.toFixed(3)} · OPS ${(teamOBP + teamSLG).toFixed(3)}<br>득점 ${teamBat.runs} · 타점 ${teamBat.rbi} · 안타 ${teamBat.hits} · BB ${teamBat.walks} · HBP ${teamBat.hbp}`;
   $('pitcherGameStats').textContent = `ERA ${teamERA} · K ${teamPitch.strikeouts} · BB ${teamPitch.walks} · WHIP ${teamWHIP} · 피안타 ${teamPitch.hits} · HBP ${teamPitch.hbp}`;
-  const batterTop = $('batterSummary');
+  
   $('batterSideLabel').textContent = ownBatter ? '내 타자 기록' : '상대 타자 기록';
   $('pitcherSideLabel').textContent = ownBatter ? '상대 투수 기록' : '내 투수 기록';
   const hitterAbilities = ownBatter ? lineup[battingOrderIndex] : null;
   const abilitySummary = hitterAbilities ? `<br>능력 · 주력 ${hitterAbilities.speed} · 파워 ${hitterAbilities.power} · 컨택 ${hitterAbilities.contact}` : '';
+  const batterTop = $('batterSummary');
   if (batterTop) batterTop.innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번 ${ownBatter ? lineup[battingOrderIndex].name : opponentLineup[opponentBatterIndex].name}</strong><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)} · OPS ${(obp + slg).toFixed(3)}<br>득점 ${bs.runs} · 타점 ${bs.rbi} · 안타 ${bs.hits}${abilitySummary}`;
   const pitcherTop = $('pitcherSummaryTop');
   if (pitcherTop) pitcherTop.innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip} · 피안타 ${ps.hits} · HBP ${ps.hbp}`;
@@ -764,8 +826,7 @@ function updateStatsUI() {
 function recordBatterHit(bases) {
   const stats = S.mode === 'bat' ? batterStats : opponentLineup[opponentBatterIndex].stats;
   stats.pa++; stats.ab++; stats.hits++; stats.totalBases += bases;
-  if (S.mode === 'bat') opponentPitcherStats.hits++;
-  else currentPitcherStats().hits++;
+  if (S.mode === 'bat') opponentPitcherStats.hits++; else currentPitcherStats().hits++;
   batterPAMode = S.mode; batterPAComplete = true;
 }
 function recordBatterOut() {
@@ -798,13 +859,10 @@ function sim(p0, v0, dur) {
 }
 
 function defend(path, buntPlay = false) {
-  // path는 시뮬레이션 시간(초) 기준입니다. 렌더링 가속 배율을 다시 곱하면
-  // 수비수가 외야 타구를 비현실적으로 멀리서 잡는 것으로 판정됩니다.
   const speed = SPDF * 1.5 * (buntPlay ? 0.23 : 1);
   for (let i = 12; i < Math.min(path.length, 210); i += 2) {
     const b = path[i], elapsed = i / 60;
     const air = b.y >= 1.1 && b.y <= 2.8;
-    // 땅볼은 내야에서 초기에 수비수와 맞닿을 때만 처리합니다.
     const ground = b.y <= 0.25 && i <= 145 && Math.hypot(b.x, b.z) <= 38;
     if (!air && !ground) continue;
     let best = null;
@@ -824,13 +882,18 @@ function deferForFielding(bases, t0, extraBase) {
   const target = hit && hit.fieldOpportunity;
   if (S.mode !== 'pitch' || !target) return false;
   const impactAt = hit.t + target.i / 60 / 1.7 * 1000;
-  const play = { target, bases, t0, extraBase, impactAt, cueTimer: 0, settleTimer: 0 };
+  const play = { target, bases, t0, extraBase, impactAt };
   pendingFieldingPlay = play;
-  play.cueTimer = setTimeout(() => {
+  
+  // 슬로우 모션 발동!
+  timeScale = 0.25;
+  
+  play.cueTimer = gameTimeout(() => {
     if (pendingFieldingPlay === play) flash('질주 버튼!', '호수비 타이밍입니다. 여유 있게 버튼을 누르세요!');
     board();
-  }, Math.max(0, impactAt - performance.now() - 850));
-  play.settleTimer = setTimeout(() => resolveFieldingPlay(false), Math.max(0, impactAt - performance.now() + 950));
+  }, Math.max(0, impactAt - logicalTime - 850));
+  
+  play.settleTimer = gameTimeout(() => resolveFieldingPlay(false), Math.max(0, impactAt - logicalTime + 950));
   return true;
 }
 
@@ -838,13 +901,15 @@ function resolveFieldingPlay(saved) {
   const play = pendingFieldingPlay;
   if (!play) return;
   pendingFieldingPlay = null;
-  clearTimeout(play.cueTimer); clearTimeout(play.settleTimer);
+  clearGameTimeout(play.cueTimer); clearGameTimeout(play.settleTimer);
+  timeScale = 1.0; // 슬로우 모션 해제
+  
   if (saved) {
     const { f, i, air } = play.target;
     hit.fieldOpportunity = null;
     hit.plan = { f, i, air, out: false, cover: null, throwTo: null };
     f.g.scale.y = 1.18;
-    setTimeout(() => { f.g.scale.y = 1; }, 520);
+    gameTimeout(() => { f.g.scale.y = 1; }, 520);
     recordBatterOut(); addOut(1); finishBatterPA();
     flash('호수비!', air ? '빠른 타구를 몸을 날려 잡았습니다!' : '내야 강습을 정확한 타이밍에 잡았습니다!');
     snd(880, 0.18, 'sine', 0.25, 1450);
@@ -860,7 +925,7 @@ function resolveFieldingPlay(saved) {
 function attemptHighlightCatch() {
   const play = pendingFieldingPlay;
   if (!play || S.mode !== 'pitch') return false;
-  const delta = performance.now() - play.impactAt;
+  const delta = logicalTime - play.impactAt;
   if (delta >= -850 && delta <= 950) { resolveFieldingPlay(true); return true; }
   return false;
 }
@@ -883,16 +948,12 @@ function snd(f, d, t, v, f2) {
     o.start(); o.stop(T + d);
   } catch(e){}
 }
-
 function hitSound() {
-  // 짧은 타구음에 저음 임팩트를 겹쳐 배트에 맞는 느낌을 냅니다.
   snd(145, 0.16, 'triangle', 0.28, 52);
   setTimeout(() => snd(1250, 0.055, 'triangle', 0.12, 420), 8);
 }
 
-/* ---------- 로직 및 UI 업데이트 ---------- */
 const dots = (n, m) => '●'.repeat(n) + '○'.repeat(m - n);
-
 function addScore(amount) {
   if (S.mode === 'bat') {
     S.sc[0] += amount;
@@ -921,24 +982,16 @@ function board() {
   $('inn').textContent = (Math.min(S.h >> 1, maxInnings - 1) + 1) + '회 ' + (S.h % 2 ? '말' : '초') + (S.mode === 'bat' ? ' 공격' : ' 수비');
   $('score').textContent = S.sc[0] + ' : ' + S.sc[1];
   $('scoreTeams').textContent = `${teamNames[0].slice(0, 8)} : ${teamNames[1].slice(0, 8)}`;
-  $('b').textContent = dots(S.balls, 3);
-  $('s').textContent = dots(S.strikes, 2);
-  $('o').textContent = dots(S.outs, 2);
+  $('b').textContent = dots(S.balls, 3); $('s').textContent = dots(S.strikes, 2); $('o').textContent = dots(S.outs, 2);
   document.querySelectorAll('.bs').forEach((e, i) => e.classList.toggle('on', !!S.bases[[1, 0, 2][i]]));
 
   document.querySelectorAll('[data-camera]').forEach(button => button.classList.toggle('on', button.dataset.camera === cameraMode));
   const canSprint = (S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace)) || (S.mode === 'pitch' && !!pendingFieldingPlay);
   $('mobileSteal').disabled = !canSprint;
   const challengeButton = $('challengeBtn');
-  challengeButton.style.display = 'block';
-  challengeButton.disabled = !pendingABSCall || challengeCount <= 0;
-  challengeButton.textContent = pendingABSCall
-    ? `⚖️ 챌린지 가능 · 번복 (${challengeCount})`
-    : `⚖️ ABS 챌린지 대기 (${challengeCount})`;
-  refreshPitchButtons();
-  updateStatsUI();
-  updatePitcherUI();
-  drawScoreboard();
+  challengeButton.style.display = 'block'; challengeButton.disabled = !pendingABSCall || challengeCount <= 0;
+  challengeButton.textContent = pendingABSCall ? `⚖️ 챌린지 가능 · 번복 (${challengeCount})` : `⚖️ ABS 챌린지 대기 (${challengeCount})`;
+  refreshPitchButtons(); updateStatsUI(); updatePitcherUI(); drawScoreboard();
 }
 
 function flash(t, sub) {
@@ -988,16 +1041,14 @@ function updateFireworks(dt) {
 }
 
 function triggerHomeRunCelebration() {
-  homeRunCelebrationUntil = performance.now() + 2600;
+  homeRunCelebrationUntil = logicalTime + 2600;
   bt.visible = true;
   flash('홈런! 🎆', '폭죽이 터집니다! 타자가 홈을 향해 세리머니합니다.');
   snd(180, 0.38, 'sawtooth', 0.2, 760);
-  [0, 260, 520, 780].forEach(delay => setTimeout(spawnFirework, delay));
+  [0, 260, 520, 780].forEach(delay => gameTimeout(spawnFirework, delay));
 }
 
-function overlay(t, p, b) {
-  $('ovT').textContent = t; $('ovP').textContent = p; $('ov').hidden = false;
-}
+function overlay(t, p, b) { $('ovT').textContent = t; $('ovP').textContent = p; $('ov').hidden = false; }
 
 function newRunner(t0, sp) {
   const q = pool.find(x => !x.on) || pool[0];
@@ -1027,19 +1078,15 @@ function advance(n, ex, t0) {
   setOcc(no); S.balls = S.strikes = 0;
   if (S.mode === 'bat') S.hits++;
 }
-
 function advanceRunnersOnBunt(t0) {
   const no = [null, null, null, null];
   for (let base = 3; base >= 1; base--) {
-    const runner = occ[base];
-    if (!runner) continue;
+    const runner = occ[base]; if (!runner) continue;
     runner.to = base + 1; runner.t0 = t0; runner.sp = runnerSpeed(runner, 13);
-    if (base === 3) { recordRunnerScore(runner); addScore(1); }
-    else no[base + 1] = runner;
+    if (base === 3) { recordRunnerScore(runner); addScore(1); } else no[base + 1] = runner;
   }
   setOcc(no);
 }
-
 function walk(t0) {
   const r = occ, no = [null, null, null, null], mv = (x, to) => { x.to = to; x.t0 = t0; x.sp = runnerSpeed(x, 16); };
   if (r[1]) {
@@ -1060,51 +1107,39 @@ function changeSide() {
 function addOut(n) { S.outs += n; S.balls = S.strikes = 0; if (S.mode === 'pitch') currentPitcherStats().outs += n; else if (S.mode === 'bat') opponentPitcherStats.outs += n; if (S.outs >= 3) changeSide(); }
 
 function beginBatterRace(t0) {
-  const runner = newRunner(t0, 9.5);
-  runner.to = 1;
+  const runner = newRunner(t0, 9.5); runner.to = 1;
   for (let base = 3; base >= 2; base--) {
-    const other = occ[base];
-    if (!other) continue;
-    const target = base + 1;
-    other.to = target; other.t0 = t0; other.sp = runnerSpeed(other, 16);
-    occ[base] = null;
-    if (target >= 4) addScore(1); else occ[target] = other;
+    const other = occ[base]; if (!other) continue;
+    const target = base + 1; other.to = target; other.t0 = t0; other.sp = runnerSpeed(other, 16);
+    occ[base] = null; if (target >= 4) addScore(1); else occ[target] = other;
   }
   setOcc(occ);
   const play = hit.plan;
   const raceTime = play.i / (60 * 1.7) + play.throwDuration / 1.7 + 0.2;
-  batterRace = { runner, callAt: t0 + raceTime * 1000 };
-  S.phase = 'running';
+  batterRace = { runner, callAt: t0 + raceTime * 1000 }; S.phase = 'running';
 }
 
 function beginBuntRace(t0) {
   const advanced = [null, null, null, null];
   for (let base = 3; base >= 1; base--) {
-    const runner = occ[base];
-    if (!runner) continue;
-    const target = base + 1;
-    runner.to = target; runner.t0 = t0; runner.sp = runnerSpeed(runner, 13);
-    if (target >= 4) { recordRunnerScore(runner); addScore(1); }
-    else advanced[target] = runner;
+    const runner = occ[base]; if (!runner) continue;
+    const target = base + 1; runner.to = target; runner.t0 = t0; runner.sp = runnerSpeed(runner, 13);
+    if (target >= 4) { recordRunnerScore(runner); addScore(1); } else advanced[target] = runner;
   }
   setOcc(advanced);
   const runner = newRunner(t0, 9.5); runner.to = 1;
   const play = hit.plan;
   const raceTime = play.i / (60 * 1.7) + play.throwDuration / 1.7 + 0.2;
-  batterRace = { kind: 'first', runner, callAt: t0 + raceTime * 1000 };
-  S.phase = 'running';
+  batterRace = { kind: 'first', runner, callAt: t0 + raceTime * 1000 }; S.phase = 'running';
 }
 
 function beginSacFlyRace(t0) {
-  const runner = occ[3];
-  if (!runner) return false;
+  const runner = occ[3]; if (!runner) return false;
   occ[3] = null; setOcc(occ);
   const play = hit?.plan;
   const catchAt = t0 + (play ? play.i / 60 / 1.7 * 1000 : 450);
-  const from = (play && hit.path[play.i] ? hit.path[play.i] : runner.g.position).clone();
-  from.y = 1.35;
-  const to = BP[0].clone(); to.y = 1.25;
-  const throwDuration = 1350;
+  const from = (play && hit.path[play.i] ? hit.path[play.i] : runner.g.position).clone(); from.y = 1.35;
+  const to = BP[0].clone(); to.y = 1.25; const throwDuration = 1350;
   defensiveThrow = { from, to, start: catchAt, duration: throwDuration, thrower: 'fielder', targetBase: 0 };
   runner.to = 4; runner.t0 = catchAt; runner.sp = runnerSpeed(runner, 10);
   batterRace = { kind: 'sacfly', runner, callAt: catchAt + throwDuration, hitterIndex: battingOrderIndex };
@@ -1115,8 +1150,7 @@ function beginSacFlyRace(t0) {
 
 function sprintBatter() {
   if (S.phase !== 'running' || !batterRace) return;
-  const runner = batterRace.runner;
-  runner.sp = Math.min(30, runner.sp + 3.2);
+  const runner = batterRace.runner; runner.sp = Math.min(30, runner.sp + 3.2);
   snd(500 + runner.sp * 25, 0.045, 'triangle', 0.13);
 }
 
@@ -1128,79 +1162,53 @@ function settleBatterRace(now) {
     batterRace = null; runner.sp = 0; runner.to = safe ? 4 : runner.b;
     if (safe) {
       runner.b = 4; recordRunnerScore(runner); addScore(1); runner.on = false; runner.g.visible = false;
-      flash('세이프! 득점!', '홈 송구보다 주자가 먼저 도착했습니다.');
-      snd(820, 0.18, 'sine', 0.24, 1250);
+      flash('세이프! 득점!', '홈 송구보다 주자가 먼저 도착했습니다.'); snd(820, 0.18, 'sine', 0.24, 1250);
     } else {
       runner.out = true; runner.on = false; runner.g.visible = false; addOut(1);
-      flash('홈에서 아웃!', '포수의 태그가 먼저 들어왔습니다.');
-      snd(190, 0.2, 'sawtooth', 0.22, 75);
+      flash('홈에서 아웃!', '포수의 태그가 먼저 들어왔습니다.'); snd(190, 0.2, 'sawtooth', 0.22, 75);
     }
     finishBatterPA(); S.phase = 'result'; board(); return;
   }
   const reachesFirst = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9;
   const safe = reachesFirst && Math.random() < BASE_RUN_SUCCESS_SCALE;
-  batterRace = null;
-  runner.to = safe ? 1 : runner.b;
-  runner.b = safe ? 1 : runner.b;
-  runner.sp = 0;
+  batterRace = null; runner.to = safe ? 1 : runner.b; runner.b = safe ? 1 : runner.b; runner.sp = 0;
   if (safe) {
-    runner.g.position.copy(BP[1]);
-    occ[1] = runner; setOcc(occ); S.hits++;
-    recordBatterHit(1);
-    flash('세이프!', '타자 주자가 송구보다 먼저 1루에 도착했습니다.');
-    snd(760, 0.16, 'sine', 0.22, 1120);
+    runner.g.position.copy(BP[1]); occ[1] = runner; setOcc(occ); S.hits++; recordBatterHit(1);
+    flash('세이프!', '타자 주자가 송구보다 먼저 1루에 도착했습니다.'); snd(760, 0.16, 'sine', 0.22, 1120);
   } else {
-    runner.out = true;
-    recordBatterOut();
-    flash('아웃!', '송구가 먼저 1루에 도착했습니다.');
-    snd(210, 0.2, 'sawtooth', 0.2, 90);
-    addOut(1);
+    runner.out = true; recordBatterOut();
+    flash('아웃!', '송구가 먼저 1루에 도착했습니다.'); snd(210, 0.2, 'sawtooth', 0.2, 90); addOut(1);
   }
-  finishBatterPA();
-  S.phase = 'result';
-  board();
+  finishBatterPA(); S.phase = 'result'; board();
 }
 
-/* ---------- 도루(Steal) 연타 기능 ---------- */
 function finishStealRace(safe) {
-  const race = stealRace;
-  if (!race) return;
+  const race = stealRace; if (!race) return;
   safe = safe && Math.random() < BASE_RUN_SUCCESS_SCALE;
-  clearTimeout(stealTimer); stealTimer = 0; stealRace = null;
+  clearGameTimeout(stealTimer); stealTimer = 0; stealRace = null;
   const { runner, runnerIdx, targetBase } = race;
   if (safe) {
     runner.g.position.copy(BP[targetBase]); runner.b = targetBase; runner.to = targetBase;
     occ[targetBase] = runner; occ[runnerIdx] = null; setOcc(occ);
-    flash('⚡ 도루 성공!', '주자가 송구보다 먼저 베이스에 닿았습니다.');
-    snd(700, 0.15, 'sine', 0.25, 1000);
+    flash('⚡ 도루 성공!', '주자가 송구보다 먼저 베이스에 닿았습니다.'); snd(700, 0.15, 'sine', 0.25, 1000);
   } else {
-    runner.out = true; runner.h = 0;
-    occ[runnerIdx] = null; setOcc(occ); addOut(1);
-    flash('도루 아웃!', '송구가 주자보다 먼저 베이스에 도착했습니다.');
-    snd(200, 0.2, 'sawtooth', 0.3, 100);
+    runner.out = true; runner.h = 0; occ[runnerIdx] = null; setOcc(occ); addOut(1);
+    flash('도루 아웃!', '송구가 주자보다 먼저 베이스에 도착했습니다.'); snd(200, 0.2, 'sawtooth', 0.3, 100);
   }
   isStealing = false; activeStealRunner = null; board();
 }
 
 function attemptSteal() {
   if (S.mode !== 'bat' || (S.phase !== 'aim' && S.phase !== 'wait')) return;
-  
-  const runnerIdx = occ[2] ? 2 : (occ[1] ? 1 : 0);
-  if (!runnerIdx) return;
-
-  const now = performance.now();
+  const runnerIdx = occ[2] ? 2 : (occ[1] ? 1 : 0); if (!runnerIdx) return;
+  const now = logicalTime;
   if (!isStealing) {
     isStealing = true;
-    // 주자가 송구 전에 베이스에 닿을 수 있도록 연타 속도와 송구 시간을 맞춥니다.
     activeStealRunner = occ[runnerIdx];
     const runnerScale = 0.84 + (activeStealRunner.speedRating || 3) * 0.04;
     stealSpeedBonus = 12.0 * runnerScale;
     const targetBase = runnerIdx + 1;
-    
-    activeStealRunner.to = targetBase;
-    activeStealRunner.t0 = now;
-    activeStealRunner.sp = stealSpeedBonus;
-
+    activeStealRunner.to = targetBase; activeStealRunner.t0 = now; activeStealRunner.sp = stealSpeedBonus;
     const thrower = runnerIdx === 2 || Math.random() < 0.45 ? 'catcher' : 'pitcher';
     const target = BP[targetBase].clone(); target.y = 1.25;
     const throwFrom = thrower === 'catcher' ? V3(0.15, 1.45, 0.8) : V3(PITCHERS[currentPitcherIdx].releaseX, PITCHERS[currentPitcherIdx].releaseY, -17.8);
@@ -1209,31 +1217,25 @@ function attemptSteal() {
     stealRace = { runner: activeStealRunner, runnerIdx, targetBase, throwAt: now + throwDuration };
     flash('⚠️ 견제 송구!', `${thrower === 'catcher' ? '포수' : '투수'}가 ${targetBase}루로 던집니다.`);
     snd(500, 0.1, 'sine', 0.2);
-    stealTimer = setTimeout(() => {
+    stealTimer = gameTimeout(() => {
       if (!stealRace) return;
       const runner = stealRace.runner;
       const atBase = runner.b >= targetBase || runner.g.position.distanceTo(BP[targetBase]) <= 0.7;
       finishStealRace(atBase);
     }, throwDuration);
   } else {
-    // 도루 진행 중 연타 시 주자 속도 증가
     const runnerScale = 0.84 + (activeStealRunner?.speedRating || 3) * 0.04;
     stealSpeedBonus = Math.min(30 * runnerScale, stealSpeedBonus + 3.2 * runnerScale);
-    if (activeStealRunner) {
-      activeStealRunner.sp = stealSpeedBonus;
-    }
+    if (activeStealRunner) activeStealRunner.sp = stealSpeedBonus;
     snd(600 + stealSpeedBonus * 15, 0.05, 'triangle', 0.15);
   }
   board();
 }
 
-/* ---------- 투구 알고리즘 ---------- */
-const WIND = 500;
-
 function pitch() {
-  if (stealRace) { timer = setTimeout(pitch, 80); return; }
+  if (stealRace) { timer = gameTimeout(pitch, 80); return; }
   if (S.mode === 'bat') pciCenter.copy(aim);
-  resetField(); const now = performance.now(), profile = DIFFICULTIES[difficulty], targetZone = Math.random() < profile.zoneRate;
+  resetField(); const now = logicalTime, profile = DIFFICULTIES[difficulty], targetZone = Math.random() < profile.zoneRate;
   const pData = PITCHERS[currentPitcherIdx];
   if (S.mode === 'bat') S.pt = pData.pitches[Math.floor(Math.random() * pData.pitches.length)];
   let tx = R(-0.5, 0.5), ty = R(-0.5, 0.5);
@@ -1252,11 +1254,9 @@ function pitch() {
   
   P = {
     tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable,
-    speedKmh,
-    release: V3(pData.releaseX, pData.releaseY, -17.8),
+    speedKmh, release: V3(pData.releaseX, pData.releaseY, -17.8),
     curve: (Math.random() < 0.4 ? R(-1, 1) : 0) * curType.c * pData.break * fatigue,
-    lift: R(0, 0.35) * curType.l,
-    t0: now + WIND, dur: baseDur, done: false
+    lift: R(0, 0.35) * curType.l, t0: now + 500, dur: baseDur, done: false
   };
   P.arrive = P.t0 + baseDur;
   S.phase = 'pitch'; sw = null; hit = null;
@@ -1276,7 +1276,7 @@ function bp(p, o) {
 
 function ready() {
   resetField(); P = null; hit = null; sw = null; isStealing = false; activeStealRunner = null;
-  pitchCharge = null;
+  pitchCharge = null; timeScale = 1.0; hrCamActive = false;
   if (S.mode === 'bat' && pciEnabled) aim.copy(pciCenter);
   bt.visible = true; defensiveThrow = null;
   S.phase = 'aim'; flash(S.mode === 'pitch' ? '투구 준비' : '타격 준비', S.mode === 'bat' ? '상대 투수가 곧 투구합니다.' : '구종을 고르고 투구하세요.');
@@ -1286,7 +1286,7 @@ function ready() {
 function beginPitchCharge() {
   if (S.mode !== 'pitch' || S.phase !== 'aim' || pitchCharge) return;
   const wrap = $('timingWrap'), cursor = $('timingCursor'), hint = $('timingHint');
-  pitchCharge = { start: performance.now(), duration: 1100 };
+  pitchCharge = { start: performance.now(), duration: 1100 }; // UI timer uses real time
   wrap.style.display = 'block'; wrap.dataset.kind = 'pitch';
   hint.textContent = '구간 안에서 SHIFT를 놓으세요'; hint.style.display = 'block';
   cancelAnimationFrame(timingAnimId);
@@ -1333,18 +1333,17 @@ function throwPitch(releaseQuality = 0, timedRelease = false) {
     if (Math.random() < 0.62) tx = (Math.random() < 0.5 ? -1 : 1) * R(1.08, 1.3);
     else ty = (Math.random() < 0.5 ? -1 : 1) * R(1.08, 1.3);
   }
-  const now = performance.now();
+  const now = logicalTime;
   const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue * (1 + quality * 0.1));
   const speedKmh = Math.round(18.4 / (dur / 1000) * 3.6);
-  pitcherStamina = Math.max(0, pitcherStamina - 1.1 / pData.endurance);
-  savePitcherStamina();
+  pitcherStamina = Math.max(0, pitcherStamina - 1.1 / pData.endurance); savePitcherStamina();
   const umpire = zoneCall(tx, ty);
   
   const me = {
     tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable, speedKmh,
     release: V3(pData.releaseX, pData.releaseY, -17.8),
     curve: (T.c * pData.break * fatigue * (1 + quality * 0.55) + quality * 0.12) * (Math.random() < 0.5 ? -1 : 1),
-    lift: T.l, t0: now + WIND, dur, done: false
+    lift: T.l, t0: now + 500, dur, done: false
   };
   me.arrive = me.t0 + me.dur; P = me; S.phase = 'pitch'; sw = null; hit = null;
   if (wildRelease) flash('실투!', '릴리스 타이밍을 놓쳐 공이 크게 벗어났습니다.');
@@ -1353,40 +1352,32 @@ function throwPitch(releaseQuality = 0, timedRelease = false) {
   const aiChance = DIFFICULTIES[difficulty].aiContact;
   if (Math.random() < C((me.actualInZone ? (sp ? 0.95 : 0.75) : (sp ? 0.4 : 0.2)) * aiChance, 0, 0.98)) {
     const off = T.bias + 170 * (1 + Math.max(Math.abs(tx), Math.abs(ty)) * 0.8) * (R(-1, 1) + R(-1, 1)) / 1.5;
-    setTimeout(() => {
+    gameTimeout(() => {
       if (P !== me || S.phase !== 'pitch') return;
-      sw = { t: performance.now(), ai: true }; resolve(off);
-    }, me.arrive - CONTACT + off - now);
+      sw = { t: logicalTime, ai: true }; resolve(off);
+    }, Math.max(0, me.arrive - CONTACT + off - now));
   }
 }
 
-/* ---------- 타격 타이밍 게이지 UI ---------- */
 function startTimingGauge(startT, arriveT) {
-  const wrap = $('timingWrap');
-  const cursor = $('timingCursor');
-  wrap.style.display = 'block';
-  
+  const wrap = $('timingWrap'), cursor = $('timingCursor'); wrap.style.display = 'block';
+  // UI anim uses system time (logicalTime handles gameplay)
+  const sysStart = performance.now(), sysArrive = sysStart + (arriveT - startT);
   function updateGauge() {
     const now = performance.now();
-    const pct = C((now - startT) / (arriveT - startT), 0, 1.1) * 100;
+    const pct = C((now - sysStart) / (sysArrive - sysStart), 0, 1.1) * 100;
     cursor.style.left = Math.min(100, pct) + '%';
-    if (now < arriveT + 100 && S.phase === 'pitch') {
-      timingAnimId = requestAnimationFrame(updateGauge);
-    } else {
-      setTimeout(() => { wrap.style.display = 'none'; }, 300);
-    }
+    if (now < sysArrive + 100 && S.phase === 'pitch') timingAnimId = requestAnimationFrame(updateGauge);
+    else setTimeout(() => { wrap.style.display = 'none'; }, 300);
   }
-  cancelAnimationFrame(timingAnimId);
-  timingAnimId = requestAnimationFrame(updateGauge);
+  cancelAnimationFrame(timingAnimId); timingAnimId = requestAnimationFrame(updateGauge);
 }
 
-/* ---------- 타격 판정 연산 ---------- */
 const LABEL = { hr: '홈런!', double: '2루타', single: '안타', bunt: '번트!', groundout: '땅볼 아웃', flyout: '뜬공 아웃', foul: '파울', whiff: '헛스윙', strike: '스트라이크', ball: '볼' };
 const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [15.5, 0.35], bunt: [6.8, 0.025], flyout: [17, 16], foul: [20, 12] };
 
 function resolve(off) {
-  P.done = true; S.phase = 'result';
-  updatePitchInfo(P);
+  P.done = true; S.phase = 'result'; updatePitchInfo(P);
   let r, parts = [], perfectPerfect = false;
   if (off === null) {
     r = P.inZone ? 'strike' : 'ball';
@@ -1394,30 +1385,23 @@ function resolve(off) {
     if (!P.actualInZone && Math.abs(P.tx) > 0.96 && Math.abs(P.ty) < 0.85 && Math.random() < 0.1) r = 'hbp';
     updateABS(P.tx, P.ty, `${r === 'strike' ? '스트라이크' : r === 'hbp' ? '몸에 맞음' : '볼'} 판정`, wrongCall);
     const safeToChallenge = r === 'strike' ? S.strikes < 2 : r === 'ball' ? S.balls < 3 : false;
-    pendingABSCall = P.challengeable && safeToChallenge
-      ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: performance.now() + 4500 }
-      : null;
-    if (pendingABSCall) setTimeout(() => { if (pendingABSCall && performance.now() >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 4550);
+    pendingABSCall = P.challengeable && safeToChallenge ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: logicalTime + 4500 } : null;
+    if (pendingABSCall) gameTimeout(() => { if (pendingABSCall && logicalTime >= pendingABSCall.expires) { pendingABSCall = null; board(); } }, 4550);
     snd(220, 0.08, 'triangle', 0.3, 90);
   } else {
-    pendingABSCall = null;
-    updateABS(P.tx, P.ty, '스윙 · 타격 판정');
+    pendingABSCall = null; updateABS(P.tx, P.ty, '스윙 · 타격 판정');
     const hitter = S.mode === 'bat' ? lineup[battingOrderIndex] : null;
     const contactScale = hitter && !buntMode ? 1 - (hitter.contact - 3) * 0.035 : 1;
     const powerBonus = hitter && !buntMode ? (hitter.power - 3) * 2.4 : 0;
-    pciInsideContact = false; pciOutsideContact = false;
+    pciInsideContact = pciOutsideContact = false;
     let pciOutsideGap = 0, pciOutsideWhiffChance = 0.78;
     let q = Math.max(0, Math.abs(off) * contactScale - powerBonus - (battingMode === 'power' && hitter ? 8 : 0)) + (P.actualInZone ? 0 : 70);
     if (hitter && sw?.user && pciEnabled && !buntMode) {
       const radius = pciRadiusFor(hitter);
       const dx = P.tx * 0.4 - pciCenter.x, dy = 0.82 + P.ty * 0.5 - pciCenter.y;
       const pitchDistance = Math.hypot(dx, dy);
-      pciInsideContact = pitchDistance <= radius;
-      pciOutsideContact = !pciInsideContact;
-      if (pciOutsideContact) {
-        pciOutsideGap = pitchDistance - radius;
-        pciOutsideWhiffChance = C(0.34 + pciOutsideGap * 1.25, 0.34, 0.92);
-      }
+      pciInsideContact = pitchDistance <= radius; pciOutsideContact = !pciInsideContact;
+      if (pciOutsideContact) { pciOutsideGap = pitchDistance - radius; pciOutsideWhiffChance = C(0.34 + pciOutsideGap * 1.25, 0.34, 0.92); }
       q *= pciInsideContact ? 0.76 : 1.08 + C(pciOutsideGap * 0.4, 0, 0.4);
     }
     if (hitter && battingMode === 'contact' && !buntMode) q *= 0.78;
@@ -1428,111 +1412,73 @@ function resolve(off) {
       r = q < 82 ? 'bunt' : q < 140 ? 'foul' : 'whiff';
       buntMode = false; board(); parts.push('번트 시도 · 공을 맞췄습니다');
     } else {
-      const weakContactWhiff = hitter ? (5 - hitter.contact) * 0.018 : 0;
-      const contactWhiff = battingMode === 'contact' ? weakContactWhiff * 0.15 : weakContactWhiff;
+      const contactWhiff = battingMode === 'contact' ? ((5 - (hitter?.contact || 3)) * 0.018) * 0.15 : ((5 - (hitter?.contact || 3)) * 0.018);
       const modeWhiff = battingMode === 'power' ? 0.12 : battingMode === 'contact' ? 0.003 : 0.015;
       const extraWhiff = hitter && sw?.user && !perfectPerfect && Math.random() < contactWhiff + modeWhiff;
       if (off < -280 || extraWhiff || (pciOutsideContact && Math.random() < pciOutsideWhiffChance)) r = 'whiff';
       else r = q < 6 ? 'hr' : q < 28 ? 'double' : q < 62 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff';
       if (hitter && battingMode === 'contact' && !buntMode && !perfectPerfect) {
-        if (r === 'hr') r = 'double';
-        else if (r === 'double' && Math.random() < 0.75) r = 'single';
+        if (r === 'hr') r = 'double'; else if (r === 'double' && Math.random() < 0.75) r = 'single';
       }
       parts.push(perfectPerfect ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음');
-      if (pciEnabled && hitter) parts.push(pciInsideContact ? '조준 성공 · 타구 보너스' : pciOutsideContact ? '조준원 밖 · 헛스윙 위험' : '');
+      if (pciEnabled && hitter) parts.push(pciInsideContact ? '조준 성공' : pciOutsideContact ? '조준원 밖' : '');
     }
-    if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140);
-    else setTimeout(hitSound, CONTACT);
+    if (r === 'whiff') snd(420, 0.14, 'sine', 0.08, 140); else gameTimeout(hitSound, Math.max(0, CONTACT));
   }
 
-  lastPitchReview = {
-    pitchName: TYPES[S.pt].name, speedKmh: P.speedKmh,
-    called: off === null ? r : '스윙',
-    actual: P.actualInZone ? 'strike' : 'ball', tx: P.tx, ty: P.ty, review: ''
-  };
-  renderVideoReview();
+  lastPitchReview = { pitchName: TYPES[S.pt].name, speedKmh: P.speedKmh, called: off === null ? r : '스윙', actual: P.actualInZone ? 'strike' : 'ball', tx: P.tx, ty: P.ty, review: '' };
 
   if (SPD[r]) {
-    if (r !== 'foul' && r !== 'hr') setTimeout(() => { bt.visible = false; }, 560);
-    const T = performance.now() + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
-    const modePowerScale = S.mode !== 'bat' || r === 'bunt' ? 1 : battingMode === 'power' ? 1.18 : battingMode === 'contact' ? 0.78 : 1;
-    const pciPowerScale = S.mode === 'bat' && pciInsideContact ? 1.18 : S.mode === 'bat' && pciOutsideContact ? 0.82 : 1;
-    const perfectPowerScale = perfectPerfect ? 1.18 : 1;
-    const powerScale = S.mode === 'bat' && r !== 'bunt' ? (1 + (lineup[battingOrderIndex].power - 3) * 0.04) * modePowerScale * pciPowerScale * perfectPowerScale : 1;
+    if (r !== 'foul' && r !== 'hr') gameTimeout(() => { bt.visible = false; }, 560);
+    const T = logicalTime + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
+    const powerScale = S.mode === 'bat' && r !== 'bunt' ? (1 + (lineup[battingOrderIndex].power - 3) * 0.04) * (battingMode === 'power' ? 1.18 : battingMode === 'contact' ? 0.78 : 1) * (S.mode === 'bat' && pciInsideContact ? 1.18 : S.mode === 'bat' && pciOutsideContact ? 0.82 : 1) * (perfectPerfect ? 1.18 : 1) : 1;
     const s = vh * R(0.9, 1.1) * powerScale;
     const path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1) * powerScale, -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', bunt: r === 'bunt', chase: null };
-    if (r !== 'hr' && r !== 'foul') {
+    
+    if (r === 'hr') {
+      timeScale = 0.35; hrCamActive = true; // 홈런 슬로우모션 및 카메라 연출
+    } else if (r !== 'foul') {
       const possiblePlay = defend(path, r === 'bunt');
-      // 안타/2루타로 판정된 타구는 포구 추정만으로 아웃으로 뒤집지 않습니다.
       const wasHit = r === 'single' || r === 'double';
-      const dd = possiblePlay;
-      if (dd) {
+      if (possiblePlay) {
         if (wasHit) {
-          const directness = C(1 - dd.distance / 24, 0, 1);
-          const catchChance = perfectPerfect ? 0.04 : dd.air ? 0.14 + directness * 0.72 : 0.55 + directness * 0.43;
-          if (Math.random() < catchChance) r = dd.air ? 'flyout' : 'groundout';
-        } else if (dd.air) r = 'flyout';
-        else if (r === 'groundout' || r === 'bunt') {
-          // 내야수가 포구 가능한 땅볼은 안타로 되돌리지 않고 아웃/1루 승부로 처리합니다.
-        } else if (r === 'flyout') r = 'single';
-        const cover = !dd.air && dd.f === F[0] ? F[1] : F[0];
-        hit.plan = { f: dd.f, i: dd.i, air: dd.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.6 };
+          const directness = C(1 - possiblePlay.distance / 24, 0, 1);
+          if (Math.random() < (perfectPerfect ? 0.04 : possiblePlay.air ? 0.14 + directness * 0.72 : 0.55 + directness * 0.43)) r = possiblePlay.air ? 'flyout' : 'groundout';
+        } else if (possiblePlay.air) r = 'flyout';
+        else if (r === 'flyout') r = 'single';
+        const cover = !possiblePlay.air && possiblePlay.f === F[0] ? F[1] : F[0];
+        hit.plan = { f: possiblePlay.f, i: possiblePlay.i, air: possiblePlay.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover, throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.6 };
       } else {
-        // 포구 가능한 수비수가 없으면 플라이도 인플레이 안타로 처리합니다.
-        if (r === 'groundout' || r === 'flyout') {
-          const endPos = path[path.length - 1];
-          r = Math.hypot(endPos.x, endPos.z) > 48 ? 'double' : 'single';
-        }
-        const landing = path[path.length - 1];
-        const outfieldOrder = F.slice(4).map(f => ({ f, distance: Math.hypot(f.g.position.x - landing.x, f.g.position.z - landing.z) })).sort((a, b) => a.distance - b.distance);
-        hit.chase = outfieldOrder[0]?.f || F[4];
-        hit.backup = outfieldOrder[1]?.f || F[5];
+        if (r === 'groundout' || r === 'flyout') r = Math.hypot(path[path.length - 1].x, path[path.length - 1].z) > 48 ? 'double' : 'single';
+        const outfieldOrder = F.slice(4).map(f => ({ f, distance: Math.hypot(f.g.position.x - path[path.length - 1].x, f.g.position.z - path[path.length - 1].z) })).sort((a, b) => a.distance - b.distance);
+        hit.chase = outfieldOrder[0]?.f || F[4]; hit.backup = outfieldOrder[1]?.f || F[5];
       }
       if (r === 'bunt' && !hit.plan) {
         let i = Math.min(36, path.length - 1);
-        for (let j = 12; j < Math.min(path.length, 80); j += 2) {
-          if (path[j].y <= 0.3) { i = j; break; }
-        }
-        const target = path[i];
-        const f = F.slice(0, 4).map(player => ({ player, d: Math.hypot(player.g.position.x - target.x, player.g.position.z - target.z) })).sort((a, b) => a.d - b.d)[0].player;
+        for (let j = 12; j < Math.min(path.length, 80); j += 2) { if (path[j].y <= 0.3) { i = j; break; } }
+        const f = F.slice(0, 4).map(player => ({ player, d: Math.hypot(player.g.position.x - path[i].x, player.g.position.z - path[i].z) })).sort((a, b) => a.d - b.d)[0].player;
         hit.plan = { f, i, air: false, out: true, cover: F[1], throwTo: B1T.clone(), throwDuration: 1.3 };
       }
       if (S.mode === 'pitch' && (r === 'single' || r === 'double') && possiblePlay && possiblePlay.distance > 0.45 && Math.random() < 0.42) {
-        hit.fieldOpportunity = possiblePlay;
+        hit.fieldOpportunity = possiblePlay; // 호수비 기회 제공
       }
     }
   }
 
-  const h0 = S.h, tt = hit ? hit.t : performance.now(), ex = hit && !hit.plan ? 1 : 0;
+  const h0 = S.h, tt = hit ? hit.t : logicalTime, ex = hit && !hit.plan ? 1 : 0;
   let label = LABEL[r], dp = false;
 
   if (r === 'hr') { recordBatterHit(4); if (S.mode === 'bat') S.hr++; advance(4, 0, tt); }
-  else if (r === 'double') {
-    if (deferForFielding(2, tt, ex)) label = '호수비 찬스!';
-    else { recordBatterHit(2); advance(2, ex, tt); }
-  }
-  else if (r === 'single') {
-    if (deferForFielding(1, tt, ex)) label = '호수비 찬스!';
-    else { recordBatterHit(1); advance(1, ex, tt); }
-  }
-  else if (r === 'bunt') {
-    beginBuntRace(tt); label = '번트 1루 승부!';
-  }
+  else if (r === 'double') { if (deferForFielding(2, tt, ex)) label = '호수비 찬스!'; else { recordBatterHit(2); advance(2, ex, tt); } }
+  else if (r === 'single') { if (deferForFielding(1, tt, ex)) label = '호수비 찬스!'; else { recordBatterHit(1); advance(1, ex, tt); } }
+  else if (r === 'bunt') { beginBuntRace(tt); label = '번트 1루 승부!'; }
   else if (r === 'groundout') {
-    if (!occ[1] && hit && hit.plan && hit.plan.throwTo) {
-      beginBatterRace(tt);
-      label = '1루 승부!';
-    } else {
-      recordBatterOut();
-      dp = !!(occ[1] && S.outs <= 1 && hit && hit.plan && !hit.plan.air && hit.plan.i < 75 && Math.random() < 0.7);
-      if (dp) label = '병살타';
-      addOut(dp ? 2 : 1);
-    }
+    if (!occ[1] && hit && hit.plan && hit.plan.throwTo) { beginBatterRace(tt); label = '1루 승부!'; }
+    else { recordBatterOut(); dp = !!(occ[1] && S.outs <= 1 && hit && hit.plan && !hit.plan.air && hit.plan.i < 75 && Math.random() < 0.7); if (dp) label = '병살타'; addOut(dp ? 2 : 1); }
   }
   else if (r === 'flyout') {
-    const sacFlyChance = S.mode === 'bat' && S.outs < 2 && !!occ[3];
-    recordBatterOut(); addOut(1);
+    const sacFlyChance = S.mode === 'bat' && S.outs < 2 && !!occ[3]; recordBatterOut(); addOut(1);
     if (sacFlyChance) { beginSacFlyRace(tt); label = '희생플라이 승부!'; parts.push('질주 버튼을 연타해 홈 송구보다 먼저 도착하세요'); }
   }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
@@ -1544,51 +1490,28 @@ function resolve(off) {
   flash(label, parts.join(', '));
   if (r === 'hr') triggerHomeRunCelebration();
   board();
-  const n2 = performance.now(), run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - n2 + (q.to - q.b) * 27400 / q.sp));
   
-  const pathRun = !hit ? 0 : hit.plan
-    ? (hit.plan.i / 60 + (hit.plan.throwTo ? hit.plan.throwDuration + 0.2 : 0.2)) / 1.7 * 1000 + 150
-    : hit.path.length / (60 * 1.7) * 1000 + 250;
-  const raceWait = batterRace ? Math.max(0, batterRace.callAt - performance.now() + 150) : 0;
-  const fieldingWait = pendingFieldingPlay ? Math.max(0, pendingFieldingPlay.impactAt + 1000 - performance.now()) : 0;
-  timer = setTimeout(() => { if (pendingFieldingPlay) resolveFieldingPlay(false); if (S.h >= 2 * maxInnings) end(); else if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun, raceWait, fieldingWait));
+  const run = Math.max(0, ...pool.filter(q => q.on).map(q => q.t0 - logicalTime + (q.to - q.b) * 27400 / q.sp));
+  const pathRun = !hit ? 0 : hit.plan ? (hit.plan.i / 60 + (hit.plan.throwTo ? hit.plan.throwDuration + 0.2 : 0.2)) / 1.7 * 1000 + 150 : hit.path.length / (60 * 1.7) * 1000 + 250;
+  const raceWait = batterRace ? Math.max(0, batterRace.callAt - logicalTime + 150) : 0;
+  const fieldingWait = pendingFieldingPlay ? Math.max(0, pendingFieldingPlay.impactAt + 1000 - logicalTime) : 0;
+  
+  timer = gameTimeout(() => {
+    if (pendingFieldingPlay) resolveFieldingPlay(false);
+    if (S.h >= 2 * maxInnings) end();
+    else if (S.mode === 'pitch') ready();
+    else { ready(); timer = gameTimeout(pitch, 1200); }
+  }, Math.max(r === 'hr' ? 3600 : S.h !== h0 ? 2600 : 2300, run + 700, pathRun, raceWait, fieldingWait));
 }
 
-function end() {
-  S.phase = 'over'; const d = S.sc[0] - S.sc[1];
-  board(); $('types').hidden = true;
-  overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', `${teamNames[0]} ${S.sc[0]} : ${S.sc[1]} ${teamNames[1]}\n안타 ${S.hits}개, 홈런 ${S.hr}개`, '');
-}
-
-function toggleBunt() {
-  if (S.mode !== 'bat' || S.phase === 'running') return;
-  buntMode = !buntMode;
-  board();
-  flash(buntMode ? '번트 준비!' : '번트 취소', buntMode ? '다음 스윙에서 번트를 시도합니다.' : '일반 스윙으로 돌아갑니다.');
-}
-
-function setBattingMode(mode) {
-  if (!['power', 'normal', 'contact'].includes(mode)) return;
-  battingMode = mode;
-  board();
-  const labels = { power: '파워스윙', normal: '노말', contact: '컨택' };
-  flash(`${labels[mode]} 모드`, mode === 'power' ? '장타력이 올라가고 헛스윙 위험도 커집니다.' : mode === 'contact' ? '타이밍 판정이 넓어지고 타구 거리는 짧아집니다.' : '파워와 컨택의 균형을 맞춥니다.');
-}
-
-function togglePCI() {
-  if (S.mode !== 'bat' || S.phase === 'running' || S.phase === 'over') return;
-  pciEnabled = !pciEnabled;
-  if (S.phase === 'aim') pciCenter.copy(aim);
-  board();
-  flash(pciEnabled ? '조준 원 ON' : '조준 원 OFF', pciEnabled ? '마우스로 원을 옮긴 뒤, 원 안에 들어온 공을 노리세요.' : '조준 보정 없이 타격합니다.');
-}
-
+function end() { S.phase = 'over'; const d = S.sc[0] - S.sc[1]; board(); $('types').hidden = true; overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', `${teamNames[0]} ${S.sc[0]} : ${S.sc[1]} ${teamNames[1]}\n안타 ${S.hits}개, 홈런 ${S.hr}개`, ''); }
+function toggleBunt() { if (S.mode !== 'bat' || S.phase === 'running') return; buntMode = !buntMode; board(); flash(buntMode ? '번트 준비!' : '번트 취소', buntMode ? '다음 스윙에서 번트를 시도합니다.' : '일반 스윙으로 돌아갑니다.'); }
+function setBattingMode(mode) { if (!['power', 'normal', 'contact'].includes(mode)) return; battingMode = mode; board(); const labels = { power: '파워스윙', normal: '노말', contact: '컨택' }; flash(`${labels[mode]} 모드`, mode === 'power' ? '장타력이 올라가고 헛스윙 위험도 커집니다.' : mode === 'contact' ? '타이밍 판정이 넓어지고 타구 거리는 짧아집니다.' : '파워와 컨택의 균형을 맞춥니다.'); }
+function togglePCI() { if (S.mode !== 'bat' || S.phase === 'running' || S.phase === 'over') return; pciEnabled = !pciEnabled; if (S.phase === 'aim') pciCenter.copy(aim); board(); flash(pciEnabled ? '조준 원 ON' : '조준 원 OFF', pciEnabled ? '마우스로 원을 옮긴 뒤, 원 안에 들어온 공을 노리세요.' : '조준 보정 없이 타격합니다.'); }
 function syncBatterAppearance() {
   const currentHitter = S.mode === 'bat' ? lineup[battingOrderIndex] : opponentLineup[opponentBatterIndex];
-  batterSide = currentHitter?.side || 'R';
-  bt.scale.x = batterSide === 'L' ? -1 : 1;
-  if (P) updatePitchInfo(P);
-  else $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`;
+  batterSide = currentHitter?.side || 'R'; bt.scale.x = batterSide === 'L' ? -1 : 1;
+  if (P) updatePitchInfo(P); else $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`;
 }
 
 function selectCamera(mode) {
@@ -1598,57 +1521,35 @@ function selectCamera(mode) {
   board();
 }
 
-function renderVideoReview() {
-  const review = lastPitchReview;
-  const box = $('videoReviewText');
-  if (!review) { box.textContent = '아직 판독할 투구가 없습니다. 투구 결과가 나오면 여기에 구종, 구속, 존 위치와 판정이 표시됩니다.'; return; }
-  const pitchCall = review.called === 'strike' ? '스트라이크' : review.called === 'ball' ? '볼' : review.called;
-  const actual = review.actual === 'strike' ? '스트라이크' : '볼';
-  box.textContent = `${review.pitchName} · ${review.speedKmh} km/h\n심판 판정: ${pitchCall}\nABS 기준: ${actual}\n존 위치: 좌우 ${review.tx.toFixed(2)} · 높낮이 ${review.ty.toFixed(2)}${review.review ? `\n${review.review}` : ''}`;
+function openVideoReview() { 
+  if (replayBuffer.length === 0) { flash('리플레이 없음', '아직 기록된 플레이가 없습니다.'); return; }
+  $('videoReviewPanel').hidden = false;
+  $('replayOverlay').hidden = false;
+  isReplaying = true;
+  replayIndex = 0;
+}
+function stopReplay() {
+  isReplaying = false;
+  $('videoReviewPanel').hidden = true;
+  $('replayOverlay').hidden = true;
 }
 
-function openVideoReview() { renderVideoReview(); $('videoReviewPanel').hidden = false; }
-
 function start(m) {
-  clearTimeout(timer); cancelPitchCharge(); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
+  clearGameTimeout(timer); cancelPitchCharge(); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0];
   buntMode = false; battingMode = 'normal'; pciEnabled = false; pciInsideContact = pciOutsideContact = false;
-  teamNames = [
-    $('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀',
-    $('opponentTeamName')?.value?.trim().slice(0, 12) || '상대 팀'
-  ];
-  if (pendingFieldingPlay) { clearTimeout(pendingFieldingPlay.cueTimer); clearTimeout(pendingFieldingPlay.settleTimer); pendingFieldingPlay = null; }
+  teamNames = [ $('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀', $('opponentTeamName')?.value?.trim().slice(0, 12) || '상대 팀' ];
+  if (pendingFieldingPlay) { clearGameTimeout(pendingFieldingPlay.cueTimer); clearGameTimeout(pendingFieldingPlay.settleTimer); pendingFieldingPlay = null; }
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
-  lineup = Array.from({ length: 9 }, (_, i) => {
-    const entered = $(`lineupName${i}`)?.value?.trim();
-    const name = entered && entered !== `${i + 1}번 타자` ? entered : `${i + 1}번 타자`;
-    return {
-      name,
-      speed: 1 + Math.floor(Math.random() * 5),
-      power: 1 + Math.floor(Math.random() * 5),
-      contact: 1 + Math.floor(Math.random() * 5),
-      side: Math.random() < 0.5 ? 'L' : 'R',
-      stats: emptyBatterStats()
-    };
-  });
-  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false;
-  opponentPitcherStats = emptyPitcherStats();
+  lineup = Array.from({ length: 9 }, (_, i) => { const entered = $(`lineupName${i}`)?.value?.trim(); const name = entered && entered !== `${i + 1}번 타자` ? entered : `${i + 1}번 타자`; return { name, speed: 1 + Math.floor(Math.random() * 5), power: 1 + Math.floor(Math.random() * 5), contact: 1 + Math.floor(Math.random() * 5), side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }; });
+  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false; opponentPitcherStats = emptyPitcherStats();
   opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }));
-  opponentBatterIndex = 0; batterPAMode = null;
-  lastPitchReview = null;
-  $('videoReviewPanel').hidden = true;
-  syncBatterAppearance();
-  pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
-  pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
-  usedPitcherIds = new Set();
-  challengeCount = 2; pendingABSCall = null;
+  opponentBatterIndex = 0; batterPAMode = null; lastPitchReview = null; $('videoReviewPanel').hidden = true; $('replayOverlay').hidden = true; isReplaying = false;
+  syncBatterAppearance(); pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()])); pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100])); usedPitcherIds = new Set(); challengeCount = 2; pendingABSCall = null;
   clearRun(); bt.visible = true; defensiveThrow = null; $('types').hidden = S.mode !== 'pitch';
-  board(); P = null; hit = null; sw = null; resetField();
-  $('ov').hidden = true; S.phase = 'wait';
-  $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`;
-  flash('플레이 볼', S.mode === 'bat' ? '초 공격' : '초 수비');
-  pitcherStamina = 100;
-  refreshPitchButtons(); updateStatsUI(); updatePitcherUI();
-  timer = setTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); timer = setTimeout(pitch, 1200); } }, 900);
+  board(); P = null; hit = null; sw = null; resetField(); $('ov').hidden = true; S.phase = 'wait';
+  $('pitchInfo').textContent = `${batterSide === 'R' ? '우타' : '좌타'} · 투구 후 구종과 구속이 표시됩니다`; flash('플레이 볼', S.mode === 'bat' ? '초 공격' : '초 수비');
+  pitcherStamina = 100; refreshPitchButtons(); updateStatsUI(); updatePitcherUI();
+  timer = gameTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); timer = gameTimeout(pitch, 1200); } }, 900);
 }
 
 function act() {
@@ -1658,33 +1559,56 @@ function act() {
   if (S.phase === 'idle' || S.phase === 'over') return start(S.fm);
   if (S.phase === 'aim') { if (S.mode === 'pitch') return throwPitch(); return; }
   if (S.phase !== 'pitch' || sw || S.mode === 'pitch') return;
-  const now = performance.now(); sw = { t: now, user: true, bunt: buntMode }; resolve(now + CONTACT - P.arrive);
+  const now = logicalTime; sw = { t: now, user: true, bunt: buntMode }; resolve(now + CONTACT - P.arrive);
 }
 
 /* ---------- 메인 프레임 렌더링 Loop ---------- */
-function tick(now) {
-  const dt = Math.min(0.033, (now - last) / 1000); last = now;
+function tick() {
+  const rawNow = performance.now();
+  const rawDt = rawNow - lastSysTime;
+  lastSysTime = rawNow;
+  
+  if (isReplaying) {
+    const frame = replayBuffer[Math.floor(replayIndex)];
+    if (frame) applyReplayFrame(frame);
+    replayIndex += 0.4; // 리플레이 슬로우 모션 재생
+    if (replayIndex >= replayBuffer.length) replayIndex = 0;
+    
+    // 리플레이 카메라 동적 조작
+    const frameBall = frame ? frame.ball.p : V3(0, 0, -18);
+    cam.position.lerp(V3(frameBall.x * 0.4, Math.max(2, frameBall.y + 12), Math.min(0, frameBall.z + 18)), 0.05);
+    cam.lookAt(frameBall);
+    
+    updateFireworks(0.016);
+    ren.render(scene, cam);
+    requestAnimationFrame(tick);
+    return;
+  }
+  
+  const dt = Math.min(0.033, rawDt / 1000) * timeScale;
+  logicalTime += rawDt * timeScale;
+  const now = logicalTime;
+  
+  scheduledTasks = scheduledTasks.filter(t => {
+    if (!t.active) return false;
+    if (now >= t.triggerAt) { t.cb(); return false; }
+    return true;
+  });
+  
   if (S.phase === 'pitch' && !P.done && now + CONTACT > P.arrive + 200) resolve(null);
   
-  // 투수마다 팔이 지나가는 높이와 투구 궤도가 다릅니다.
   const pitcher = PITCHERS[currentPitcherIdx];
   arm.position.set(pitcher.releaseX, pitcher.releaseY + 0.08, -18.4);
-  const deliveryStart = P ? P.t0 - WIND : 0;
+  const deliveryStart = P ? P.t0 - 500 : 0;
   const deliveryActive = !!P && now >= deliveryStart && now <= deliveryStart + 660;
   const deliveryT = deliveryActive ? C((now - deliveryStart) / 660, 0, 1) : 1;
   const drive = deliveryT < 0.48 ? deliveryT / 0.48 : 1 - (deliveryT - 0.48) / 0.52;
   const recover = deliveryT < 0.48 ? 0 : (deliveryT - 0.48) / 0.52;
-  if (!deliveryActive) {
-    arm.rotation.set(-0.2, 0, 0);
-  } else if (pitcher.form === 'over') {
-    arm.rotation.set(deliveryT < 0.48 ? -0.2 - 3.15 * drive : -3.35 + 3.15 * recover, 0.04, 0.08);
-  } else if (pitcher.form === 'side') {
-    arm.rotation.set(-0.32 - 0.35 * drive + 0.67 * recover, 0, deliveryT < 0.48 ? -0.18 - 2.0 * drive : -2.18 + 2.0 * recover);
-  } else if (pitcher.form === 'under') {
-    arm.rotation.set(deliveryT < 0.48 ? 0.55 + 1.05 * drive : 1.6 - 1.8 * recover, 0.12, 0.25 + 0.3 * drive - 0.37 * recover);
-  } else {
-    arm.rotation.set(deliveryT < 0.48 ? -0.1 - 2.45 * drive : -2.55 + 2.45 * recover, 0.12, deliveryT < 0.48 ? 0.18 - 0.48 * drive : -0.3 + 0.3 * recover);
-  }
+  if (!deliveryActive) { arm.rotation.set(-0.2, 0, 0); }
+  else if (pitcher.form === 'over') { arm.rotation.set(deliveryT < 0.48 ? -0.2 - 3.15 * drive : -3.35 + 3.15 * recover, 0.04, 0.08); }
+  else if (pitcher.form === 'side') { arm.rotation.set(-0.32 - 0.35 * drive + 0.67 * recover, 0, deliveryT < 0.48 ? -0.18 - 2.0 * drive : -2.18 + 2.0 * recover); }
+  else if (pitcher.form === 'under') { arm.rotation.set(deliveryT < 0.48 ? 0.55 + 1.05 * drive : 1.6 - 1.8 * recover, 0.12, 0.25 + 0.3 * drive - 0.37 * recover); }
+  else { arm.rotation.set(deliveryT < 0.48 ? -0.1 - 2.45 * drive : -2.55 + 2.45 * recover, 0.12, deliveryT < 0.48 ? 0.18 - 0.48 * drive : -0.3 + 0.3 * recover); }
   const pitcherStride = deliveryT < 0.48 ? drive : 1 - recover;
   pit.position.set(0.12 * pitcherStride, 0.28 + 0.1 * pitcherStride, -18.4 + 0.62 * pitcherStride);
   pit.rotation.x = deliveryActive ? -0.08 * pitcherStride : 0;
@@ -1694,30 +1618,16 @@ function tick(now) {
   if (defensiveThrow) {
     const throwPose = C((now - defensiveThrow.start) / 240, 0, 1);
     if (defensiveThrow.thrower === 'pitcher') arm.rotation.z = -1.2 * throwPose;
-    else {
-      catcher.rotation.y += (defensiveThrow.targetBase === 2 ? -0.28 : 0.28) * throwPose;
-      catcher.rotation.z = -0.12 * throwPose;
-    }
+    else { catcher.rotation.y += (defensiveThrow.targetBase === 2 ? -0.28 : 0.28) * throwPose; catcher.rotation.z = -0.12 * throwPose; }
   }
   
-  // 준비 동작에서 뒤로 당겼다가, 작은 체중 이동과 함께 배트를 앞쪽으로 크게 가속합니다.
   if (sw?.bunt) {
-    const elapsed = now - sw.t;
-    const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
-    const hold = 1 - smooth((elapsed - 250) / 260);
-    swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold);
-    bat.position.x = (batterSide === 'L' ? 0.58 : 0.48);
-    bat.rotation.set(0, 0, Math.PI / 2 * hold + BAT_READY * (1 - hold));
-    up.rotation.set(-0.06 * hold, 0.04 * hold, 0);
-    bt.rotation.set(0.015 * hold, 0.035 * hold, 0);
-    bt.position.set(0, 0.018 * hold, -0.075 * hold);
+    const elapsed = now - sw.t, smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); }, hold = 1 - smooth((elapsed - 250) / 260);
+    swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold); bat.position.x = (batterSide === 'L' ? 0.58 : 0.48); bat.rotation.set(0, 0, Math.PI / 2 * hold + BAT_READY * (1 - hold));
+    up.rotation.set(-0.06 * hold, 0.04 * hold, 0); bt.rotation.set(0.015 * hold, 0.035 * hold, 0); bt.position.set(0, 0.018 * hold, -0.075 * hold);
     batterLegs.forEach((leg, i) => leg.rotation.set(0, 0, i === 1 ? -0.035 * hold : 0.015 * hold));
   } else if (sw) {
-    bat.position.x = 0.28;
-    const elapsed = now - sw.t;
-    const smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
-    const load = smooth(elapsed / 170), drive = smooth((elapsed - 170) / 190), finish = smooth((elapsed - 360) / 360);
-    const recoil = Math.sin(Math.min(1, elapsed / 170) * Math.PI / 2);
+    bat.position.x = 0.28; const elapsed = now - sw.t, smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); }, load = smooth(elapsed / 170), drive = smooth((elapsed - 170) / 190), finish = smooth((elapsed - 360) / 360), recoil = Math.sin(Math.min(1, elapsed / 170) * Math.PI / 2);
     swingArms.rotation.y = elapsed < 170 ? -0.22 - 0.92 * load : elapsed < 360 ? -1.14 + 2.35 * drive : 1.21 - 0.42 * finish;
     swingArms.rotation.z = elapsed < 170 ? -0.12 * load : elapsed < 360 ? -0.12 + 0.48 * drive : 0.36 - 0.18 * finish;
     bat.rotation.y = elapsed < 170 ? -0.25 * load : elapsed < 360 ? -0.25 + 0.58 * drive : 0.33 - 0.25 * finish;
@@ -1730,41 +1640,24 @@ function tick(now) {
     const frontLeg = batterSide === 'R' ? batterLegs[1] : batterLegs[0];
     frontLeg.rotation.z = elapsed < 170 ? 0.03 * load : elapsed < 360 ? 0.03 - 0.13 * drive : -0.10 + 0.07 * finish;
   } else if (buntMode && S.mode === 'bat') {
-    bt.position.set(0, 0, 0);
-    bt.rotation.set(0, 0, 0);
-    batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
-    up.rotation.set(-0.05, 0.04, 0);
-    swingArms.rotation.set(-0.24, 0.08, 0.02);
-    bat.position.x = batterSide === 'L' ? 0.58 : 0.48;
-    bat.rotation.set(0, 0, Math.PI / 2);
+    bt.position.set(0, 0, 0); bt.rotation.set(0, 0, 0); batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
+    up.rotation.set(-0.05, 0.04, 0); swingArms.rotation.set(-0.24, 0.08, 0.02);
+    bat.position.x = batterSide === 'L' ? 0.58 : 0.48; bat.rotation.set(0, 0, Math.PI / 2);
   } else {
-    bat.position.x = 0.28;
-    bt.position.set(0, 0, 0);
-    bt.rotation.set(0, 0, 0);
-    batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
-    up.rotation.set(0, 0.03, 0);
-    swingArms.rotation.set(0, 0, 0);
-    swingArms.rotation.y += (0 - swingArms.rotation.y) * 0.18;
-    swingArms.rotation.z += (0 - swingArms.rotation.z) * 0.18;
-    bat.rotation.y += (0 - bat.rotation.y) * 0.22;
-    bat.rotation.z += (BAT_READY - bat.rotation.z) * 0.18;
+    bat.position.x = 0.28; bt.position.set(0, 0, 0); bt.rotation.set(0, 0, 0); batterLegs.forEach(leg => leg.rotation.set(0, 0, 0));
+    up.rotation.set(0, 0.03, 0); swingArms.rotation.set(0, 0, 0); swingArms.rotation.y += (0 - swingArms.rotation.y) * 0.18; swingArms.rotation.z += (0 - swingArms.rotation.z) * 0.18; bat.rotation.y += (0 - bat.rotation.y) * 0.22; bat.rotation.z += (BAT_READY - bat.rotation.z) * 0.18;
   }
   if (homeRunCelebrationUntil > now) {
-    const celebrationT = now / 1000;
-    const celebrationProgress = C(1 - (homeRunCelebrationUntil - now) / 2600, 0, 1);
-    bt.visible = true;
-    swingArms.rotation.set(-0.32, 0.12, 0.82 + Math.sin(celebrationT * 7) * 0.12);
-    bat.rotation.set(0, -0.08, BAT_READY + 1.35);
-    up.rotation.set(-0.12, 0.1 + Math.sin(celebrationT * 7) * 0.04, 0);
-    bt.rotation.y = celebrationProgress * Math.PI * 2;
-    bt.position.y = 0.045 * Math.sin(celebrationProgress * Math.PI);
+    const celebrationT = now / 1000, celebrationProgress = C(1 - (homeRunCelebrationUntil - now) / 2600, 0, 1);
+    bt.visible = true; swingArms.rotation.set(-0.32, 0.12, 0.82 + Math.sin(celebrationT * 7) * 0.12);
+    bat.rotation.set(0, -0.08, BAT_READY + 1.35); up.rotation.set(-0.12, 0.1 + Math.sin(celebrationT * 7) * 0.04, 0);
+    bt.rotation.y = celebrationProgress * Math.PI * 2; bt.position.y = 0.045 * Math.sin(celebrationProgress * Math.PI);
   }
   
-  // 주자 위치 갱신
   pool.forEach(r => {
     if (!r.on || now < r.t0) return;
     if (r.b >= r.to) {
-      if (r.out && !r.h) { r.h = 1; setTimeout(() => { r.on = false; r.g.visible = false; }, 500); }
+      if (r.out && !r.h) { r.h = 1; gameTimeout(() => { r.on = false; r.g.visible = false; }, 500); }
       else if (r.to >= 4) { r.on = false; r.g.visible = false; }
       return;
     }
@@ -1773,46 +1666,29 @@ function tick(now) {
     r.g.rotation.y = Math.atan2(dx, dz);
   });
   if (stealRace) {
-    const runner = stealRace.runner, targetBase = stealRace.targetBase;
-    const atBase = runner.b >= targetBase || runner.g.position.distanceTo(BP[targetBase]) <= 0.7;
+    const runner = stealRace.runner, targetBase = stealRace.targetBase, atBase = runner.b >= targetBase || runner.g.position.distanceTo(BP[targetBase]) <= 0.7;
     if (atBase && now < stealRace.throwAt) finishStealRace(true);
   }
   if (batterRace && (now >= batterRace.callAt || batterRace.runner.b >= (batterRace.kind === 'sacfly' ? 4 : 1))) settleBatterRace(now);
   
-  // 수비 AI 이동
   if (hit && hit.path && hit.path.length > 0) {
     const k = (now - hit.t) / 1000 * 1.7;
     if (k >= 0) {
-      const idx = Math.min(hit.path.length - 1, Math.floor(k * 60));
-      const ballPos = hit.path[idx];
-      const pl = hit.plan;
-
+      const idx = Math.min(hit.path.length - 1, Math.floor(k * 60)), ballPos = hit.path[idx], pl = hit.plan;
       F.forEach(f => {
         let tg = null;
         if (pl) {
-          if (f === pl.f) {
-            tg = hit.path[pl.i] || ballPos;
-          } else if (pl.out && !pl.air && f === pl.cover) {
-            tg = B1;
-          } else if (pl.dp && f === F[1]) {
-            tg = B2P;
-          }
-        } else if (hit.fieldOpportunity && hit.fieldOpportunity.f === f) {
-          tg = hit.path[hit.fieldOpportunity.i] || ballPos;
-        } else if (hit.chase === f) {
-          tg = ballPos;
-        } else if (hit.backup === f) {
-          tg = ballPos.clone().add(V3(ballPos.x >= 0 ? -4 : 4, 0, 4));
-        }
-
+          if (f === pl.f) tg = hit.path[pl.i] || ballPos;
+          else if (pl.out && !pl.air && f === pl.cover) tg = B1;
+          else if (pl.dp && f === F[1]) tg = B2P;
+        } else if (hit.fieldOpportunity && hit.fieldOpportunity.f === f) tg = hit.path[hit.fieldOpportunity.i] || ballPos;
+        else if (hit.chase === f) tg = ballPos;
+        else if (hit.backup === f) tg = ballPos.clone().add(V3(ballPos.x >= 0 ? -4 : 4, 0, 4));
         if (tg) {
           const q = f.g.position, dx = tg.x - q.x, dz = tg.z - q.z, d = Math.hypot(dx, dz);
           if (d > 0.1) {
-            const buntSpeed = hit.bunt ? 0.23 : 1;
-            const st = Math.min(SPDF * 1.5 * 1.7 * dt * buntSpeed, d);
-            q.x += (dx / d) * st;
-            q.z += (dz / d) * st;
-            f.g.rotation.y = Math.atan2(dx, dz);
+            const buntSpeed = hit.bunt ? 0.23 : 1, st = Math.min(SPDF * 1.5 * 1.7 * dt * buntSpeed, d);
+            q.x += (dx / d) * st; q.z += (dz / d) * st; f.g.rotation.y = Math.atan2(dx, dz);
           }
         }
       });
@@ -1827,7 +1703,6 @@ function tick(now) {
   pciRing.position.set(pciAim.x, pciAim.y, 0.15);
   pciRing.scale.set(pciRadius, pciRadius * 1.12, 1);
   
-  // 공 위치 갱신
   let vis = false;
   if (P && now >= P.t0 && !(hit && now >= hit.t)) {
     const p = (now - P.t0) / P.dur;
@@ -1835,39 +1710,32 @@ function tick(now) {
   }
   let follow = false;
   if (hit && now >= hit.t) {
-    const k = (now - hit.t) / 1000 * 1.7, n = hit.path.length;
-    const rawIndex = Math.min(n - 1, Math.floor(k * 60));
-    const plan = hit.plan;
+    const k = (now - hit.t) / 1000 * 1.7, n = hit.path.length, rawIndex = Math.min(n - 1, Math.floor(k * 60)), plan = hit.plan;
     if (plan && plan.throwTo) {
       const catchK = plan.i / 60, throwProgress = C((k - catchK) / plan.throwDuration, 0, 1);
-      if (k < catchK) ball.position.copy(hit.path[rawIndex]);
-      else ball.position.lerpVectors(hit.path[plan.i], plan.throwTo, throwProgress);
-      vis = k < catchK + plan.throwDuration + 0.18;
-      follow = k < catchK + plan.throwDuration + 0.35;
+      if (k < catchK) ball.position.copy(hit.path[rawIndex]); else ball.position.lerpVectors(hit.path[plan.i], plan.throwTo, throwProgress);
+      vis = k < catchK + plan.throwDuration + 0.18; follow = k < catchK + plan.throwDuration + 0.35;
     } else if (plan) {
       ball.position.copy(hit.path[Math.min(rawIndex, plan.i)]);
       const catchWindow = hit.fieldOpportunity && pendingFieldingPlay ? 1.0 : 0.14;
-      vis = k < plan.i / 60 + catchWindow;
-      follow = k < plan.i / 60 + catchWindow + 0.14;
+      vis = k < plan.i / 60 + catchWindow; follow = k < plan.i / 60 + catchWindow + 0.14;
     } else {
-      ball.position.copy(hit.path[rawIndex]);
-      vis = !(hit.hr && rawIndex >= n - 1) && rawIndex < n - 1;
-      follow = k < n / 60 + 0.5;
+      ball.position.copy(hit.path[rawIndex]); vis = !(hit.hr && rawIndex >= n - 1) && rawIndex < n - 1; follow = k < n / 60 + 0.5;
     }
     ball.rotation.x -= dt * 18;
   }
   if (defensiveThrow && now >= defensiveThrow.start) {
     const progress = C((now - defensiveThrow.start) / defensiveThrow.duration, 0, 1);
     ball.position.lerpVectors(defensiveThrow.from, defensiveThrow.to, progress);
-    ball.position.y += Math.sin(progress * Math.PI) * 2.2;
-    ball.rotation.x -= dt * 28;
-    vis = progress < 1;
+    ball.position.y += Math.sin(progress * Math.PI) * 2.2; ball.rotation.x -= dt * 28; vis = progress < 1;
     if (progress >= 1) defensiveThrow = null;
   }
   ball.visible = vis; shd.visible = vis;
   if (vis) { shd.position.set(ball.position.x, 0.06, ball.position.z); shd.scale.setScalar(1 / (1 + ball.position.y * 0.12)); }
   
-  // 카메라 워킹
+  catcher.visible = cameraMode !== 'batter';
+  catcherMask.visible = cameraMode !== 'batter';
+  
   const raceRunner = stealRace?.runner || batterRace?.runner || null;
   if (raceRunner?.on) lookT.set(raceRunner.g.position.x, Math.max(0.9, raceRunner.g.position.y + 0.9), raceRunner.g.position.z);
   else if (follow) lookT.set(ball.position.x * 0.9, Math.max(1, ball.position.y * 0.8), Math.min(ball.position.z, -6));
@@ -1877,107 +1745,33 @@ function tick(now) {
     else lookT.copy(DEF);
   }
   look.lerp(lookT, 1 - Math.pow(0.02, dt));
+  
   let desiredCamPos = camPos.clone(), fov = 60;
-  if (cameraMode === 'pitcher') { desiredCamPos.set(0.95, 2.1, -21.1); fov = 52; }
-  else if (cameraMode === 'batter') { desiredCamPos.set((batterSide === 'R' ? -1 : 1) * 1.4, 1.6, 0.55); fov = 72; }
-  if (raceRunner?.on) {
-    desiredCamPos.set(raceRunner.g.position.x - 2.6, 2.5, raceRunner.g.position.z + 4.2);
-    fov = 58;
+  if (hrCamActive && ball.visible) {
+    desiredCamPos.set(ball.position.x, Math.max(2.5, ball.position.y + 1), ball.position.z + 5);
+    lookT.copy(ball.position);
+    fov = 55;
+  } else if (cameraMode === 'pitcher') { 
+    desiredCamPos.set(0, 2.2, -22.5); fov = 40; 
+  } else if (cameraMode === 'batter') { 
+    desiredCamPos.set(0, 1.55, 1.2); fov = 60; 
   }
+  if (raceRunner?.on && !hrCamActive) { desiredCamPos.set(raceRunner.g.position.x - 2.6, 2.5, raceRunner.g.position.z + 4.2); fov = 58; }
+  
   if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
   liveCamPos.lerp(desiredCamPos, 1 - Math.pow(0.015, dt));
-  cam.position.copy(liveCamPos);
-  cam.lookAt(look);
+  cam.position.copy(liveCamPos); cam.lookAt(look);
 
   updateFireworks(dt);
+  recordFrame(); // 리플레이 데이터 기록
   ren.render(scene, cam);
   requestAnimationFrame(tick);
 }
 
-/* ---------- 이벤트 리스너 및 투수 교체 모달 ---------- */
-function updatePitcherUI() {
-  const p = PITCHERS[currentPitcherIdx];
-  const staminaPct = C(pitcherStamina, 0, 100);
-  $('pitcherName').textContent = p.name;
-  $('pitcherStats').textContent = `${p.formName} · 구속 ${Math.round(p.speed*140)}km/h`;
-  $('pitcherStaminaFill').style.width = `${staminaPct}%`;
-  $('pitcherStaminaFill').style.background = staminaPct < 25 ? 'linear-gradient(90deg,#dc2626,#f87171)' : staminaPct < 55 ? 'linear-gradient(90deg,#d97706,#fbbf24)' : 'linear-gradient(90deg,#22c55e,#a3e635)';
-  $('pitcherStaminaText').textContent = `${Math.round(staminaPct)}%`;
-}
-
-function openPitcherModal() {
-  const list = $('pitcherList');
-  list.innerHTML = '';
-  
-  PITCHERS.forEach((p, idx) => {
-    const alreadyUsed = usedPitcherIds.has(p.id);
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.disabled = alreadyUsed;
-    btn.className = `w-full text-left p-3 rounded-lg border transition-all disabled:opacity-45 disabled:cursor-not-allowed ${
-      idx === currentPitcherIdx 
-        ? 'border-amber-400 bg-amber-400/20 text-white font-bold' 
-        : 'border-slate-700 bg-slate-800/80 text-slate-200 hover:bg-slate-700'
-    }`;
-    btn.innerHTML = `
-      <div class="flex justify-between items-center mb-1">
-        <span class="font-bold ${idx === currentPitcherIdx ? 'text-amber-400' : 'text-white'}">${p.title} ${p.name}</span>
-        <span class="text-xs bg-slate-900 px-2 py-0.5 rounded text-amber-300 border border-slate-700">${idx === currentPitcherIdx ? '현재 등판 · ' : alreadyUsed ? '등판 완료 · ' : ''}${p.formName} · ${Math.round(p.speed*140)} km/h</span>
-      </div>
-      <div class="text-xs text-slate-400">${p.desc}</div>
-      <div class="text-[10px] text-emerald-300 mt-1">사용 구종: ${p.pitches.map(i => TYPES[i].name).join(' · ')}</div>
-    `;
-    btn.onclick = () => { 
-      if (usedPitcherIds.has(p.id)) return;
-      savePitcherStamina();
-      currentPitcherIdx = idx;
-      pitcherStamina = pitcherStaminaById[idx] ?? 100;
-      if (!p.pitches.includes(S.pt)) S.pt = p.pitches[0];
-      updatePitcherUI(); 
-      refreshPitchButtons(); updateStatsUI();
-      $('pitcherModal').hidden = true; 
-      $('pitcherModal').style.display = 'none';
-    };
-    list.appendChild(btn);
-  });
-  
-  $('pitcherModal').hidden = false;
-  $('pitcherModal').style.display = 'flex';
-}
-
-stage.addEventListener('pointerdown', e => {
-  // 시작 설정 오버레이 안의 입력·버튼 클릭은 경기 캔버스 조작으로 전달하지 않습니다.
-  if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, button, input, select, textarea, label')) return;
-  const touchInput = e.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches;
-  if (touchInput && S.mode === 'pitch') {
-    e.preventDefault();
-    if (S.phase === 'aim') aimAt(e);
-    return;
-  }
-  e.preventDefault();
-  if (attemptHighlightCatch()) return;
-  if (S.mode === 'pitch' && S.phase === 'aim') {
-    aimAt(e);
-    if (!window.matchMedia('(pointer: coarse)').matches) act();
-  } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e);
-  else act();
-});
-stage.addEventListener('pointermove', e => {
-  const canMovePitchAim = S.mode === 'pitch' && S.phase === 'aim';
-  const canMovePCI = S.mode === 'bat' && pciEnabled && (S.phase === 'aim' || (S.phase === 'pitch' && P && performance.now() < P.arrive - CONTACT));
-  if (canMovePitchAim || canMovePCI) aimAt(e);
-});
-
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); b.blur(); } });
 $('mobileAct').addEventListener('click', () => act());
 $('mobileSteal').addEventListener('click', useSprintAction);
-$('mobilePitchShift').addEventListener('pointerdown', e => {
-  if (S.mode !== 'pitch' || S.phase !== 'aim') return;
-  e.preventDefault();
-  try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
-  beginPitchCharge();
-  e.currentTarget.classList.add('on');
-});
+$('mobilePitchShift').addEventListener('pointerdown', e => { if (S.mode !== 'pitch' || S.phase !== 'aim') return; e.preventDefault(); try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {} beginPitchCharge(); e.currentTarget.classList.add('on'); });
 $('mobilePitchShift').addEventListener('pointerup', e => { e.preventDefault(); releasePitchCharge(); e.currentTarget.classList.remove('on'); });
 $('mobilePitchShift').addEventListener('pointercancel', e => { releasePitchCharge(); e.currentTarget.classList.remove('on'); });
 $('buntBtn').addEventListener('click', toggleBunt);
@@ -1985,29 +1779,29 @@ $('pciBtn').addEventListener('click', togglePCI);
 document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(button => button.addEventListener('click', () => setBattingMode(button.dataset.battingMode)));
 document.querySelectorAll('[data-camera]').forEach(button => button.addEventListener('click', () => selectCamera(button.dataset.camera)));
 $('videoReviewBtn').addEventListener('click', openVideoReview);
-$('closeVideoReview').addEventListener('click', () => { $('videoReviewPanel').hidden = true; });
+$('closeVideoReview').addEventListener('click', () => { stopReplay(); });
 $('changePitcherBtn').addEventListener('click', openPitcherModal);
-$('closePitcherModal').addEventListener('click', () => { 
-  $('pitcherModal').hidden = true; 
-  $('pitcherModal').style.display = 'none';
-});
+$('closePitcherModal').addEventListener('click', () => { $('pitcherModal').hidden = true; $('pitcherModal').style.display = 'none'; });
 
 $('go').addEventListener('click', () => { start('bat'); });
 $('go2').addEventListener('click', () => { start('pitch'); });
-document.querySelectorAll('#stadiumChoices .stadium-choice').forEach(button => {
-  button.addEventListener('click', () => applyStadium(Number(button.dataset.stadium)));
-});
-document.querySelectorAll('#difficultyChoices [data-difficulty]').forEach(button => button.addEventListener('click', () => {
-  difficulty = button.dataset.difficulty;
-  document.querySelectorAll('#difficultyChoices [data-difficulty]').forEach(b => b.classList.toggle('on', b === button));
-}));
-document.querySelectorAll('#inningChoices [data-innings]').forEach(button => button.addEventListener('click', () => {
-  maxInnings = Number(button.dataset.innings);
-  document.querySelectorAll('#inningChoices [data-innings]').forEach(b => b.classList.toggle('on', b === button));
-  drawScoreboard();
-}));
+document.querySelectorAll('#stadiumChoices .stadium-choice').forEach(button => { button.addEventListener('click', () => applyStadium(Number(button.dataset.stadium))); });
+document.querySelectorAll('#difficultyChoices [data-difficulty]').forEach(button => button.addEventListener('click', () => { difficulty = button.dataset.difficulty; document.querySelectorAll('#difficultyChoices [data-difficulty]').forEach(b => b.classList.toggle('on', b === button)); }));
+document.querySelectorAll('#inningChoices [data-innings]').forEach(button => button.addEventListener('click', () => { maxInnings = Number(button.dataset.innings); document.querySelectorAll('#inningChoices [data-innings]').forEach(b => b.classList.toggle('on', b === button)); drawScoreboard(); }));
 $('challengeBtn').addEventListener('click', challengeABS);
 
+stage.addEventListener('pointerdown', e => {
+  if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, button, input, select, textarea, label')) return;
+  const touchInput = e.pointerType === 'touch' || window.matchMedia('(pointer: coarse)').matches;
+  if (touchInput && S.mode === 'pitch') { e.preventDefault(); if (S.phase === 'aim') aimAt(e); return; }
+  e.preventDefault(); if (attemptHighlightCatch()) return;
+  if (S.mode === 'pitch' && S.phase === 'aim') { aimAt(e); if (!window.matchMedia('(pointer: coarse)').matches) act(); } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e); else act();
+});
+stage.addEventListener('pointermove', e => {
+  const canMovePitchAim = S.mode === 'pitch' && S.phase === 'aim';
+  const canMovePCI = S.mode === 'bat' && pciEnabled && (S.phase === 'aim' || (S.phase === 'pitch' && P && logicalTime < P.arrive - CONTACT));
+  if (canMovePitchAim || canMovePCI) aimAt(e);
+});
 addEventListener('keydown', e => {
   if (e.target instanceof HTMLElement && (e.target.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))) return;
   if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { e.preventDefault(); if (!e.repeat) { if (S.mode === 'bat') togglePCI(); else beginPitchCharge(); } }
@@ -2035,9 +1829,3 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
-
-
-
-
