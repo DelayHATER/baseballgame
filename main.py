@@ -56,6 +56,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
 .pitch-btn.on { background: var(--lamp); color: #0b1726; border-color: var(--lamp); font-weight: 800; }
 .stadium-choice { background:#172554; border:1px solid #475569; border-radius:8px; color:#e2e8f0; padding:8px 10px; font-weight:700; cursor: pointer; }
 .stadium-choice.on { background:#fbbf24; color:#0b1726; border-color:#fbbf24; }
+
 #absPanel { position:absolute; left:10px; bottom:10px; z-index:18; padding:8px; border-radius:8px; background:rgba(2,6,23,.88); border:1px solid rgba(226,232,240,.35); color:#f8fafc; font-size:10px; }
 #absGrid { display:grid; grid-template-columns:repeat(7,14px); gap:2px; margin:5px auto; }
 .abs-cell { width:14px; height:14px; border:1px solid rgba(255,255,255,.22); background:rgba(148,163,184,.12); }
@@ -64,24 +65,30 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
 .abs-cell.challenge { outline:1px solid #f87171; }
 #absCall { display:block; text-align:center; color:#fbbf24; min-height:14px; }
 #absPanel #challengeBtn { display:block !important; width:100%; margin-top:4px; padding:5px; font-size:10px; }
+
 .setting-row { display:flex; align-items:center; justify-content:center; flex-wrap:wrap; gap:6px; }
 .setting-label { color:#cbd5e1; font-size:12px; font-weight:700; margin:0 3px; }
 .pitch-info { display:flex; align-items:center; justify-content:center; min-height:34px; border:1px solid #334155; border-radius:8px; background:#0f172a; color:#fbbf24; font-weight:800; font-size:13px; letter-spacing:.04em; }
+
 .top-summaries { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .summary-card { min-width:0; border:1px solid #334155; border-radius:9px; background:#0f172a; padding:8px 10px; color:#e2e8f0; font-size:11px; }
 .summary-card b { display:block; font-size:12px; margin-bottom:3px; }
+
 .lineup-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; width:min(100%,440px); max-height:210px; overflow:auto; padding:4px; }
 .lineup-grid label { color:#cbd5e1; font-size:10px; text-align:left; }
 .lineup-grid input { display:block; width:100%; min-width:0; margin-top:2px; border:1px solid #475569; border-radius:5px; background:#0f172a; color:#fff; padding:5px; font-size:11px; }
 .lineup-card { min-width:0; padding:4px; border:1px solid #334155; border-radius:6px; background:rgba(15,23,42,.7); }
+
 .team-name-inputs { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:min(100%,440px); }
 .team-name-inputs label { color:#cbd5e1; font-size:11px; text-align:left; }
 .team-name-inputs input { display:block; width:100%; margin-top:3px; border:1px solid #475569; border-radius:6px; background:#0f172a; color:#fff; padding:6px; font-size:12px; }
+
 #gameHud { position:absolute; right:8px; bottom:48px; z-index:19; width:min(260px,74%); display:flex; flex-direction:column; gap:5px; padding:7px; border:1px solid rgba(226,232,240,.35); border-radius:9px; background:rgba(2,6,23,.9); color:#f8fafc; box-shadow:0 4px 14px rgba(0,0,0,.35); }
 .game-hud-score { display:grid; grid-template-columns:1fr auto; align-items:center; gap:2px 8px; }
 .game-hud-score #scoreTeams { grid-column:1; grid-row:1; color:#cbd5e1; font-size:10px; }
 .game-hud-score #score { grid-column:1; grid-row:2; font-size:20px; line-height:1.05; }
 .game-hud-score #inn { grid-column:2; grid-row:1 / span 2; color:#fbbf24; font-size:15px; white-space:nowrap; }
+
 #gameHud #pitchInfo { min-height:22px; padding:2px 5px; border:0; background:rgba(30,41,59,.72); font-size:11px; }
 #gameHud .hud-count { display:flex; justify-content:space-around; padding:3px 6px; border-radius:6px; background:rgba(15,23,42,.9); }
 #gameHud .hud-count > div { display:flex; align-items:center; gap:5px; }
@@ -90,15 +97,22 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
 .stamina-track { flex:1; height:8px; overflow:hidden; border:1px solid rgba(255,255,255,.24); border-radius:99px; background:rgba(15,23,42,.95); }
 #pitcherStaminaFill { display:block; width:100%; height:100%; border-radius:99px; background:linear-gradient(90deg,#22c55e,#a3e635); transition:width .25s ease; }
 #pitcherStaminaText { min-width:29px; text-align:right; color:#fbbf24; }
+
 #gameHud .hud-base { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:2px 6px; border-radius:6px; background:rgba(15,23,42,.9); color:#cbd5e1; font-size:10px; }
-#gameHud .hud-cameras { display:grid; grid-template-columns:1fr 1fr 1fr; gap:3px; }
+#gameHud .hud-cameras { display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:3px; }
 #gameHud .hud-cameras button, #videoReviewBtn { color:#e2e8f0; background:#1e293b; border:1px solid #475569; border-radius:5px; padding:4px 3px; font-size:9px; font-weight:700; cursor: pointer; }
 #gameHud .hud-cameras button.on { color:#0b1726; background:#fbbf24; border-color:#fbbf24; }
+
 #replayBadge { position:absolute; top:12px; left:12px; z-index:30; background:rgba(220,38,38,0.9); color:#fff; font-weight:800; font-size:12px; padding:4px 10px; border-radius:6px; display:none; animation:blink 1s infinite alternate; }
 @keyframes blink { 0%{opacity:1;} 100%{opacity:0.4;} }
 #videoReviewPanel { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); z-index:35; width:min(320px,88%); padding:12px; border:1px solid #64748b; border-radius:10px; background:rgba(2,6,23,.96); color:#f8fafc; box-shadow:0 8px 30px rgba(0,0,0,.6); }
 #videoReviewText { white-space:pre-line; }
-@media (max-width:480px) { #gameHud { width:min(205px,64%); right:6px; bottom:46px; padding:5px; gap:4px; } #gameHud #pitchInfo { font-size:10px; } #gameHud .hud-cameras button, #videoReviewBtn { font-size:8px; } }
+
+@media (max-width:480px) { 
+  #gameHud { width:min(205px,64%); right:6px; bottom:46px; padding:5px; gap:4px; } 
+  #gameHud #pitchInfo { font-size:10px; } 
+  #gameHud .hud-cameras button, #videoReviewBtn { font-size:8px; } 
+}
 </style>
 </head>
 <body>
@@ -136,8 +150,8 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
       <div class="mt-3 pt-3 border-t border-slate-700 text-xs">
         <span class="block mb-1 text-slate-300 font-bold">주루 판정 수동 번복</span>
         <div class="flex gap-2">
-          <button id="overrideOutBtn" class="bg-red-900/80 border border-red-500 hover:bg-red-800 text-red-100 px-2 py-1.5 rounded flex-1 font-bold">아웃 처리</button>
-          <button id="overrideSafeBtn" class="bg-blue-900/80 border border-blue-500 hover:bg-blue-800 text-blue-100 px-2 py-1.5 rounded flex-1 font-bold">세이프 처리</button>
+          <button id="overrideOutBtn" class="bg-red-900/80 border border-red-500 hover:bg-red-800 text-red-100 px-2 py-1.5 rounded flex-1 font-bold cursor-pointer">아웃 처리</button>
+          <button id="overrideSafeBtn" class="bg-blue-900/80 border border-blue-500 hover:bg-blue-800 text-blue-100 px-2 py-1.5 rounded flex-1 font-bold cursor-pointer">세이프 처리</button>
         </div>
       </div>
       <div class="flex gap-2 mt-3">
@@ -150,7 +164,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
     <div id="timeoutMenu" class="absolute inset-0 bg-black/85 z-40 flex flex-col items-center justify-center p-4 backdrop-blur-sm" style="display: none;">
       <h2 class="text-4xl text-amber-400 font-title mb-8 drop-shadow-lg">타임 선언</h2>
       <button id="resumeGameBtn" class="btn-action w-64 py-4 text-lg mb-4">경기 재개</button>
-      <button id="openPinchHitterBtn" class="bg-blue-700 hover:bg-blue-600 text-white font-bold w-64 py-4 text-lg rounded-lg border border-blue-500 shadow-lg mb-4">대타 기용</button>
+      <button id="openPinchHitterBtn" class="bg-blue-700 hover:bg-blue-600 text-white font-bold w-64 py-4 text-lg rounded-lg border border-blue-500 shadow-lg mb-4 cursor-pointer">대타 기용</button>
     </div>
 
     <!-- 대타 기용 모달 -->
@@ -158,12 +172,10 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
       <h2 class="text-2xl text-amber-400 font-title mb-3">대타 기용 (랜덤 생성)</h2>
       <p class="text-[11px] text-slate-300 mb-3 text-center">투수의 폼/손 방향과 강점/약점이 일치하면<br>타격에 큰 영향을 줍니다.</p>
       
-      <!-- 교체할 타순 선택 -->
       <div class="w-full max-w-sm mb-3">
         <label class="text-xs text-amber-200 font-bold block mb-1">교체할 타순 선택</label>
-        <select id="pinchTargetSelect" class="w-full bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm"></select>
+        <select id="pinchTargetSelect" class="w-full bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm cursor-pointer"></select>
       </div>
-
       <div id="pinchHitterList" class="flex flex-col gap-2 w-full max-w-sm max-h-60 overflow-y-auto pr-1"></div>
       <button id="closePinchHitterBtn" class="stadium-choice w-full max-w-sm mt-3 py-2">취소</button>
     </div>
@@ -177,6 +189,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
       </div>
     </div>
 
+    <!-- ABS UI -->
     <div id="absPanel">
       <b>ABS 존 · 최근 투구</b>
       <div id="absGrid"></div>
@@ -207,7 +220,9 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
       <div class="hud-cameras">
         <button type="button" data-camera="plate">포수 뒤</button>
         <button type="button" data-camera="pitcher">투수 뒤</button>
-        <button type="button" data-camera="batter">타자 1인칭</button>
+        <button type="button" data-camera="batter">1인칭</button>
+        <!-- 송구 모드 토글 -->
+        <button type="button" id="throwToggleBtn" class="text-slate-200">송구: 자동</button>
       </div>
       <button id="videoReviewBtn" type="button">📺 비디오 판독 (일시정지)</button>
     </section>
@@ -219,11 +234,12 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
     </div>
     <div id="timingHint"></div>
 
+    <!-- 시작 화면 오버레이 -->
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
         선수 능력치와 상성(대타 기용 시)이 경기에 직접 적용됩니다.<br>
-        수동 송구 모드를 켜면 1루 땅볼 시 직접 타이밍을 맞춰야 합니다.
+        1루 수동 송구 설정은 게임 중 우측 하단 패널에서도 바꿀 수 있습니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button type="button" class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
@@ -236,11 +252,6 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
         <button type="button" class="stadium-choice" data-difficulty="easy">쉬움</button>
         <button type="button" class="stadium-choice on" data-difficulty="normal">보통</button>
         <button type="button" class="stadium-choice" data-difficulty="hard">어려움</button>
-      </div>
-      <div class="setting-row" id="throwChoices">
-        <span class="setting-label">수비 1루 송구</span>
-        <button type="button" class="stadium-choice on" data-throw="auto">자동 송구</button>
-        <button type="button" class="stadium-choice" data-throw="manual">수동 조작</button>
       </div>
       <div class="setting-row" id="inningChoices">
         <span class="setting-label">이닝</span>
@@ -307,7 +318,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
 (() => {
 const $ = id => document.getElementById(id);
 
-// 초기 UI 세팅
+// 라인업 초기화
 $('lineupInputs').innerHTML = Array.from({ length: 9 }, (_, i) => `
   <div class="lineup-card"><label>${i + 1}번 타자<input id="lineupName${i}" maxlength="12" value="${i + 1}번 타자"></label></div>`).join('');
 
@@ -340,7 +351,6 @@ let throwCharge = null;
 const TRAIT_TYPES = ['우완', '좌완', '오버핸드', '쓰리쿼터', '사이드암', '언더핸드'];
 const PINCH_NAMES = ['김대타', '이한방', '박승부', '최역전', '정클러치', '강스윙', '조타격', '장홈런'];
 
-// 좌완 우완, 최동원 윤석민 추가
 const PITCHERS = [
   { id: 0, title: 'MONSTER', name: '류현진', hand: 'L', form: 'over', formName: '오버핸드', releaseX: -0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.027, endurance: 1.12, pitches: [0,2,3,4], desc: '좌완 · 구속 A · 변화 A · 제구 S' },
   { id: 1, title: '뱀직구', name: '임창용', hand: 'R', form: 'side', formName: '사이드암', releaseX: 0.52, releaseY: 1.48, speed: 1.05, break: 1.45, ctrl: 0.045, endurance: 0.94, pitches: [0,1,2,5], desc: '우완 · 구속 B · 변화 A · 제구 B' },
@@ -409,6 +419,7 @@ let replayFrameIndex = 0;
 let hrSequence = null;
 let hrContactFrame = 0;
 
+// Three.js 설정
 const stage = $('stage');
 const ren = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 ren.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -1026,8 +1037,14 @@ function board() {
   
   $('battingModeChoices').style.display = S.mode === 'bat' ? 'flex' : 'none'; 
   document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(b => b.classList.toggle('on', b.dataset.battingMode === battingMode));
-  document.querySelectorAll('#throwChoices [data-throw]').forEach(b => b.classList.toggle('on', (manualThrowMode && b.dataset.throw==='manual') || (!manualThrowMode && b.dataset.throw==='auto')));
   
+  // 송구 모드 UI 토글 버튼
+  const tBtn = $('throwToggleBtn');
+  if(tBtn) {
+      tBtn.textContent = `수비 1루 송구: ${manualThrowMode ? '수동' : '자동'}`;
+      tBtn.style.color = manualThrowMode ? '#fbbf24' : '#e2e8f0';
+  }
+
   $('pciBtn').hidden = S.mode !== 'bat'; 
   $('pciBtn').disabled = S.phase === 'running'; 
   $('pciBtn').textContent = `🎯 조준 원: ${pciEnabled ? 'ON' : 'OFF'} (Shift)`;
@@ -1050,6 +1067,12 @@ function board() {
   
   refreshPitchButtons(); updateStatsUI(); updatePitcherUI(); drawScoreboard();
 }
+
+// 송구 모드 토글 (인게임 HUD)
+$('throwToggleBtn')?.addEventListener('click', () => {
+    manualThrowMode = !manualThrowMode;
+    board();
+});
 
 function flash(t, sub) { 
   const m = $('msg'); m.innerHTML = ''; 
@@ -1542,8 +1565,8 @@ function tick(realNow) {
   ren.render(scene, cam); requestAnimationFrame(tick);
 }
 
-document.querySelectorAll('#throwChoices [data-throw]').forEach(b => b.addEventListener('click', () => { manualThrowMode = b.dataset.throw === 'manual'; document.querySelectorAll('#throwChoices [data-throw]').forEach(btn => btn.classList.toggle('on', btn === b)); }));
-stage.addEventListener('pointerdown', e => { if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, #timeoutMenu, #pinchHitterModal, button, input, select')) return; e.preventDefault(); if (attemptHighlightCatch()) return; if (S.mode === 'pitch' && S.phase === 'aim') { aimAt(e); act(); } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e); else act(); });
+document.querySelectorAll('#throwChoices [data-throw]').forEach(b => b.addEventListener('click', () => { manualThrowMode = b.dataset.throw === 'manual'; document.querySelectorAll('#throwChoices [data-throw]').forEach(btn => btn.classList.toggle('on', btn === b)); board(); }));
+stage.addEventListener('pointerdown', e => { if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, #timeoutMenu, #pinchHitterModal, #pitcherModal, button, input, select')) return; e.preventDefault(); if (attemptHighlightCatch()) return; if (S.mode === 'pitch' && S.phase === 'aim') { aimAt(e); act(); } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e); else act(); });
 stage.addEventListener('pointermove', e => { if ((S.mode === 'pitch' && S.phase === 'aim') || (S.mode === 'bat' && pciEnabled)) aimAt(e); });
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); } });
 $('mobileAct').addEventListener('click', () => act()); $('mobileSteal').addEventListener('click', useSprintAction); $('buntBtn').addEventListener('click', toggleBunt); $('pciBtn').addEventListener('click', togglePCI);
