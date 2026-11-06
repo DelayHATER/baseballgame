@@ -159,8 +159,8 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
-        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다.
+        경기 전에 구장을 고르세요.<br>
+        타자 능력치가 경기에 직접 적용되며, 실책/포일 확률이 존재합니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button type="button" class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
@@ -212,7 +212,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
   <div class="grid grid-cols-3 gap-2 mt-1">
     <button id="mobileAct" class="col-span-2 btn-action py-3.5 text-lg font-title tracking-wider shadow-lg">스윙!</button>
     <button id="mobileSteal" class="bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-bold rounded-lg py-3 text-sm flex items-center justify-center gap-1 shadow-lg disabled:opacity-40" disabled>
-      🏃 질주
+      🏃 질주 (태그업)
     </button>
     <button id="mobilePitchShift" class="col-span-3 stadium-choice py-3" style="display:none;touch-action:none">⚾ 투구 타이밍 · 누르고 있다가 떼기</button>
     <button id="buntBtn" class="col-span-3 stadium-choice py-2">번트 대기</button>
@@ -220,7 +220,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
   </div>
 
   <p class="text-xs text-slate-400 text-center mt-1">
-    📱 모바일: 터치 조작 / 💻 PC: [마우스 휠] 줌, [Space] 타격/투구, [S] 질주, [B] 번트, [ESC] 타임
+    📱 모바일: 터치 조작 / 💻 PC: [마우스 휠] 줌, [Space] 타격/투구, [S] 질주(도루/태그업), [B] 번트, [ESC] 타임
   </p>
   <section id="statsPanel" class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
     <div class="bg-slate-900 border border-slate-700 rounded-lg p-2"><b class="text-amber-400">내 타자 전체 기록</b><div id="batterStats" class="text-slate-200 mt-1">AVG — · OBP — · SLG — · OPS —<br>득점 0 · 타점 0</div></div>
@@ -253,10 +253,9 @@ const gameTimers = [];
 function setGameTimeout(fn, delayMs) { const tObj = { triggerAt: simTime + delayMs, fn, canceled: false }; gameTimers.push(tObj); return tObj; }
 function clearGameTimeout(tObj) { if (tObj) tObj.canceled = true; }
 
-// 게임 정지 플래그 (비디오 판독, ESC 타임)
 let isReviewPaused = false, isTimeOut = false;
-let camZoom = 1.0; // 마우스 휠 줌 팩터
-let lastRace = null; // 아웃/세이프 수동 조작용 주루 기록
+let camZoom = 1.0;
+let lastRace = null, pendingTagUp = null;
 
 const PITCHERS = [
   { id: 0, title: 'MONSTER', name: '류현진', form: 'over', formName: '오버핸드', releaseX: 0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.03, endurance: 1.12, pitches: [0,2,3,4], desc: '높은 릴리스 · 구속 A · 변화 A · 제구 A' },
@@ -281,11 +280,11 @@ const emptyBatterStats = () => ({ pa: 0, ab: 0, hits: 0, walks: 0, hbp: 0, total
 const emptyPitcherStats = () => ({ outs: 0, strikeouts: 0, walks: 0, hits: 0, hbp: 0, earnedRuns: 0 });
 
 let batterStats = emptyBatterStats();
-let lineup = Array.from({ length: 9 }, (_, i) => ({ name: `${i + 1}번 타자`, stats: emptyBatterStats(), speed: 3, power: 3, contact: 3, side: 'R' }));
+let lineup = Array.from({ length: 9 }, (_, i) => ({ name: `${i + 1}번 타자`, stats: emptyBatterStats(), speed: 3, power: 3, contact: 3, eye: 3, side: 'R' }));
 let battingOrderIndex = 0, batterPAComplete = false;
 let pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()]));
 let opponentPitcherStats = emptyPitcherStats();
-let opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }));
+let opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats(), speed: 3, power: 3, contact: 3, eye: 3 }));
 let opponentBatterIndex = 0, batterPAMode = null;
 let challengeCount = 2, pendingABSCall = null, lastPitchReview = null;
 
@@ -297,7 +296,7 @@ let timingAnimId = null, pitchCharge = null;
 let isStealing = false, stealSpeedBonus = 0, activeStealRunner = null, stealRace = null, stealTimerObj = null;
 let batterRace = null, pendingFieldingPlay = null, buntMode = false;
 
-const REPLAY_MAX_FRAMES = 360;
+const REPLAY_MAX_FRAMES = 420;
 const replayBuffer = [];
 let isReplaying = false, replayFrameIndex = 0;
 let hrSequence = null, hrContactFrame = 0;
@@ -346,6 +345,16 @@ const TS = Math.PI * 1.5 - 1.05, TL = 2.1;
 const wall = new THREE.Mesh(new THREE.CylinderGeometry(100, 100, 4, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x14402e, roughness: 0.8, side: THREE.DoubleSide })); wall.position.y = 2; scene.add(wall);
 const stands = new THREE.Mesh(new THREE.CylinderGeometry(119, 119, 16, 72, 1, true, TS, TL), new THREE.MeshStandardMaterial({ color: 0x26364c, roughness: 0.88, side: THREE.DoubleSide })); stands.position.y = 8; scene.add(stands);
 
+const ump = figure(0x111111, 0x111111, 0, 1.55); ump.scale.set(1.1, 1.1, 1.1);
+const dugoutGroup = new THREE.Group(); scene.add(dugoutGroup);
+const dMat = mat(0x0f172a, 0.9), dRoof = mat(0x1e293b, 0.9);
+[-1, 1].forEach(s => {
+    const d = new THREE.Group(); d.position.set(s * 22, 0, -16); d.rotation.y = s * -Math.PI / 6; dugoutGroup.add(d);
+    mk(new THREE.BoxGeometry(16, 1.2, 4), dMat, 0, 0.6, 0, d); mk(new THREE.BoxGeometry(17, 0.2, 5), dRoof, 0, 2.2, 0, d); mk(new THREE.BoxGeometry(0.2, 2.2, 4), dMat, -8, 1.1, 0, d); mk(new THREE.BoxGeometry(0.2, 2.2, 4), dMat, 8, 1.1, 0, d);
+});
+const fences = [];
+[-1, 1].forEach(s => { const f = mk(new THREE.BoxGeometry(60, 2.4, 0.4), mat(0x14402e, 0.8), s * 45, 1.2, -45, scene); f.rotation.y = s * Math.PI / 4; fences.push(f); });
+
 const crowdPositions = [], crowdColors = [], crowdPalette = [0xe2e8f0, 0xfbbf24, 0x38bdf8, 0xf87171, 0x34d399, 0xc4b5fd, 0xffffff];
 for (let i = 0; i < 4200; i++) { const angle = TS + R(0.04, TL - 0.04), radius = R(115.5, 120.5), y = R(4.2, 16.2); crowdPositions.push(Math.cos(angle) * radius, y, Math.sin(angle) * radius); const color = new THREE.Color(crowdPalette[Math.floor(Math.random() * crowdPalette.length)]); crowdColors.push(color.r, color.g, color.b); }
 const crowdGeometry = new THREE.BufferGeometry(); crowdGeometry.setAttribute('position', new THREE.Float32BufferAttribute(crowdPositions, 3)); crowdGeometry.setAttribute('color', new THREE.Float32BufferAttribute(crowdColors, 3)); const crowd = new THREE.Points(crowdGeometry, new THREE.PointsMaterial({ size: 2.1, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9 })); crowd.frustumCulled = false; scene.add(crowd);
@@ -363,7 +372,13 @@ const STADIUMS = [
   { name: '해안 구장', sky: 0x164e63, fog: 0x164e63, seats: 0x0e7490, wall: 0x0f766e, grass: 0xe1f0ff, dome: false, board: 0x0284c7 },
   { name: '그린 파크', sky: 0x183b2b, fog: 0x183b2b, seats: 0x36533b, wall: 0x2f6b3f, grass: 0xf1f7e8, dome: false, board: 0x3f6212 }
 ];
-function applyStadium(index) { selectedStadium = index; const stadium = STADIUMS[index]; scene.background.setHex(stadium.sky); scene.fog.color.setHex(stadium.fog); stands.material.color.setHex(stadium.seats); wall.material.color.setHex(stadium.wall); fieldMat.color.setHex(stadium.grass); dome.visible = stadium.dome; drawScoreboard(); }
+function applyStadium(index) {
+  selectedStadium = index; const stadium = STADIUMS[index];
+  scene.background.setHex(stadium.sky); scene.fog.color.setHex(stadium.fog);
+  stands.material.color.setHex(stadium.seats); wall.material.color.setHex(stadium.wall);
+  fieldMat.color.setHex(stadium.grass); dome.visible = stadium.dome;
+  fences.forEach(f => f.material.color.setHex(stadium.wall)); drawScoreboard();
+}
 function drawScoreboard() {
   if (!scoreTexture || !scoreTexture.image) return; const g = scoreTexture.image.getContext('2d'), w = 512, h = 128; const color = '#' + STADIUMS[selectedStadium].board.toString(16).padStart(6, '0');
   g.fillStyle = '#07111d'; g.fillRect(0, 0, w, h); g.fillStyle = color; g.fillRect(8, 8, w - 16, h - 16); g.fillStyle = '#ffffff'; g.font = 'bold 22px sans-serif'; g.textAlign = 'left'; g.fillText(STADIUMS[selectedStadium].name.toUpperCase(), 24, 38); g.font = 'bold 17px sans-serif'; g.textAlign = 'left'; g.fillText(teamNames[0].slice(0, 12), 24, 64); g.textAlign = 'right'; g.fillText(teamNames[1].slice(0, 12), w - 24, 64); g.font = 'bold 32px sans-serif'; g.textAlign = 'center'; g.fillText(`${S.sc[0]}  :  ${S.sc[1]}`, w / 2, 94); g.font = 'bold 19px sans-serif'; g.textAlign = 'right'; g.fillText(`${Math.min((S.h >> 1) + 1, maxInnings)}회 ${S.h % 2 ? '말' : '초'}   O ${S.outs}`, w - 22, 113); scoreTexture.needsUpdate = true;
@@ -406,7 +421,12 @@ function aimAt(e) {
 }
 function setPT(i) { if (PITCHERS[currentPitcherIdx].pitches.includes(i)) { S.pt = i; refreshPitchButtons(); } }
 function refreshPitchButtons() { const allowed = PITCHERS[currentPitcherIdx].pitches; if (!allowed.includes(S.pt)) S.pt = allowed[0]; document.querySelectorAll('#types button').forEach((btn, i) => { btn.hidden = !allowed.includes(i); btn.classList.toggle('on', S.pt === i); }); }
-function zoneCall(tx, ty) { const actual = Math.abs(tx) <= 0.96 && Math.abs(ty) <= 0.96; const edge = Math.min(Math.abs(Math.abs(tx) - 0.96), Math.abs(Math.abs(ty) - 0.96)); const challengeable = edge <= 0.20, wrong = challengeable && Math.random() < 0.04; return { actual, called: wrong ? !actual : actual, challengeable, wrong }; }
+
+function zoneCall(tx, ty, eyeRating = 3) {
+  const eyeBonus = (eyeRating - 3) * 0.025;
+  const actual = Math.abs(tx) <= (0.96 - eyeBonus) && Math.abs(ty) <= (0.96 - eyeBonus);
+  const edge = Math.min(Math.abs(Math.abs(tx) - 0.96), Math.abs(Math.abs(ty) - 0.96)); const challengeable = edge <= 0.20, wrong = challengeable && Math.random() < 0.04; return { actual, called: wrong ? !actual : actual, challengeable, wrong };
+}
 function initABSGrid() { const grid = $('absGrid'); if (grid.childElementCount) return; for (let row = 0; row < 7; row++) for (let col = 0; col < 7; col++) { const cell = document.createElement('i'); cell.className = 'abs-cell' + (row >= 1 && row <= 5 && col >= 1 && col <= 5 ? ' zone' : ''); grid.appendChild(cell); } }
 function updateABS(tx, ty, callText, wrong = false) { initABSGrid(); const col = C(Math.floor((tx + 1.344) / 2.688 * 7), 0, 6); const row = 6 - C(Math.floor((ty + 1.344) / 2.688 * 7), 0, 6); const cell = row * 7 + col; document.querySelectorAll('.abs-cell').forEach((el, i) => { el.classList.toggle('point', i === cell); el.classList.toggle('challenge', i === cell && wrong); }); $('absCall').textContent = callText; }
 function updatePitchInfo(pitchData) { if (!pitchData) return; const kind = TYPES[S.pt], pitcher = PITCHERS[currentPitcherIdx]; $('pitchInfo').textContent = `⚾ ${kind.name} · ${pitchData.speedKmh} km/h · ${pitcher.formName} · ${batterSide === 'R' ? '우타' : '좌타'}`; }
@@ -430,7 +450,10 @@ function updateStatsUI() {
   const teamBat = totalBatterStats(lineup), teamAvg = teamBat.ab ? teamBat.hits / teamBat.ab : 0, teamOBPden = teamBat.ab + teamBat.walks + teamBat.hbp, teamOBP = teamOBPden ? (teamBat.hits + teamBat.walks + teamBat.hbp) / teamOBPden : 0, teamSLG = teamBat.ab ? teamBat.totalBases / teamBat.ab : 0;
   const teamPitch = totalPitcherStats(), teamIP = teamPitch.outs / 3, teamERA = teamIP ? (teamPitch.earnedRuns * 9 / teamIP).toFixed(2) : '—', teamWHIP = teamIP ? ((teamPitch.walks + teamPitch.hits) / teamIP).toFixed(2) : '—';
   $('batterStats').innerHTML = `AVG ${teamAvg.toFixed(3)} · OBP ${teamOBP.toFixed(3)} · SLG ${teamSLG.toFixed(3)} · OPS ${(teamOBP + teamSLG).toFixed(3)}<br>득점 ${teamBat.runs} · 타점 ${teamBat.rbi} · 안타 ${teamBat.hits}`; $('pitcherGameStats').textContent = `ERA ${teamERA} · K ${teamPitch.strikeouts} · BB ${teamPitch.walks} · WHIP ${teamWHIP}`;
-  if ($('batterSummary')) $('batterSummary').innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번</strong><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)}`;
+  
+  const currentHitter = ownBatter ? lineup[battingOrderIndex] : opponentLineup[opponentBatterIndex];
+  const statsStr = `[주력 ${currentHitter.speed} | 파워 ${currentHitter.power} | 컨택 ${currentHitter.contact} | 선구 ${currentHitter.eye}]`;
+  if ($('batterSummary')) $('batterSummary').innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번</strong><br><span class="text-emerald-300">${statsStr}</span><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)}`;
   if ($('pitcherSummaryTop')) $('pitcherSummaryTop').innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip}`;
 }
 
@@ -465,7 +488,28 @@ function attemptHighlightCatch() {
   const play = pendingFieldingPlay; if (!play || S.mode !== 'pitch') return false;
   if (simTime - play.impactAt >= -850 && simTime - play.impactAt <= 950) { resolveFieldingPlay(true); return true; } return false;
 }
-function useSprintAction() { if (pendingFieldingPlay && S.mode === 'pitch') { attemptHighlightCatch(); return; } if (S.phase === 'running') sprintBatter(); else attemptSteal(); }
+function useSprintAction() {
+  if (pendingFieldingPlay && S.mode === 'pitch') { attemptHighlightCatch(); return; }
+  
+  if (pendingTagUp) {
+    const now = simTime; const tag = pendingTagUp; pendingTagUp = null;
+    if (now < tag.catchAt - 150) {
+      flash('태그업 아웃!', '포구 전에 출발하여 아웃되었습니다.'); tag.runner.out = true; occ[3] = null; setOcc(occ); addOut(1); board();
+    } else {
+      const reaction = Math.max(0, now - tag.catchAt);
+      const runner = tag.runner; occ[3] = null; setOcc(occ);
+      const spd = runnerSpeed(runner, 18) - (reaction * 0.005);
+      runner.to = 4; runner.t0 = now; runner.sp = Math.max(12, spd);
+      const throwerPos = hit.path[hit.plan ? hit.plan.i : hit.path.length-1];
+      defensiveThrow = { from: throwerPos.clone().setY(1.5), to: BP[4].clone().setY(0.5), start: now, duration: tag.throwDuration, thrower: 'outfield', targetBase: 4 };
+      batterRace = { kind: 'sacfly', runner, callAt: now + tag.throwDuration }; S.phase = 'running';
+      flash('홈 쇄도!', '태그업 성공! 홈을 향해 뜁니다!'); board();
+    }
+    return;
+  }
+  
+  if (S.phase === 'running') sprintBatter(); else attemptSteal();
+}
 
 function snd(f, d, t, v, f2) { if (!ac) return; try { const T = ac.currentTime, o = ac.createOscillator(), g = ac.createGain(); o.type = t; o.frequency.setValueAtTime(f, T); if (f2) o.frequency.exponentialRampToValueAtTime(f2, T + d); g.gain.setValueAtTime(v, T); g.gain.exponentialRampToValueAtTime(0.001, T + d); o.connect(g); g.connect(ac.destination); o.start(); o.stop(T + d); } catch(e){} }
 function hitSound() { snd(145, 0.16, 'triangle', 0.28, 52); setTimeout(() => snd(1250, 0.055, 'triangle', 0.12, 420), 8); }
@@ -476,12 +520,12 @@ function addScore(amount) { if (S.mode === 'bat') { S.sc[0] += amount; batterSta
 function board() {
   $('mobileAct').textContent = S.mode === 'pitch' ? '투구!' : S.phase === 'aim' ? '타격 준비' : S.phase === 'running' ? '주루 중…' : '스윙!';
   const mobilePitchShift = $('mobilePitchShift'); mobilePitchShift.style.display = S.mode === 'pitch' && S.phase === 'aim' ? 'block' : 'none'; mobilePitchShift.classList.toggle('on', !!pitchCharge);
-  $('mobileSteal').textContent = '🏃 질주'; $('buntBtn').textContent = buntMode ? '번트 대기 중 · 취소' : '번트 대기'; $('buntBtn').classList.toggle('on', buntMode); $('buntBtn').disabled = S.mode !== 'bat' || S.phase === 'running';
+  $('mobileSteal').textContent = '🏃 질주 (태그업)'; $('buntBtn').textContent = buntMode ? '번트 대기 중 · 취소' : '번트 대기'; $('buntBtn').classList.toggle('on', buntMode); $('buntBtn').disabled = S.mode !== 'bat' || S.phase === 'running';
   $('battingModeChoices').style.display = S.mode === 'bat' ? 'flex' : 'none'; document.querySelectorAll('#battingModeChoices [data-batting-mode]').forEach(b => b.classList.toggle('on', b.dataset.battingMode === battingMode));
   $('pciBtn').hidden = S.mode !== 'bat'; $('pciBtn').disabled = S.phase === 'running'; $('pciBtn').textContent = `🎯 조준 원: ${pciEnabled ? 'ON' : 'OFF'} (Shift)`;
   $('inn').textContent = (Math.min(S.h >> 1, maxInnings - 1) + 1) + '회 ' + (S.h % 2 ? '말' : '초') + (S.mode === 'bat' ? ' 공격' : ' 수비'); $('score').textContent = S.sc[0] + ' : ' + S.sc[1]; $('scoreTeams').textContent = `${teamNames[0].slice(0, 8)} : ${teamNames[1].slice(0, 8)}`;
   $('b').textContent = dots(S.balls, 3); $('s').textContent = dots(S.strikes, 2); $('o').textContent = dots(S.outs, 2); document.querySelectorAll('.bs').forEach((e, i) => e.classList.toggle('on', !!S.bases[[1, 0, 2][i]])); document.querySelectorAll('[data-camera]').forEach(b => b.classList.toggle('on', b.dataset.camera === cameraMode));
-  const canSprint = (S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace)) || (S.mode === 'pitch' && !!pendingFieldingPlay); $('mobileSteal').disabled = !canSprint;
+  const canSprint = (S.mode === 'bat' && ((S.bases[0] || S.bases[1]) && (S.phase === 'aim' || S.phase === 'wait') || S.phase === 'running' && !!batterRace || !!pendingTagUp)) || (S.mode === 'pitch' && !!pendingFieldingPlay); $('mobileSteal').disabled = !canSprint;
   const challengeButton = $('challengeBtn'); challengeButton.style.display = 'block'; challengeButton.disabled = !pendingABSCall || challengeCount <= 0; challengeButton.textContent = pendingABSCall ? `⚖️ 챌린지 가능 (${challengeCount})` : `⚖️ ABS 챌린지 (${challengeCount})`;
   refreshPitchButtons(); updateStatsUI(); updatePitcherUI(); drawScoreboard();
 }
@@ -510,7 +554,7 @@ function newRunner(t0, sp) { const q = pool.find(x => !x.on) || pool[0], batterI
 function runnerSpeed(runner, baseSpeed) { return baseSpeed * (0.84 + (runner?.speedRating || 3) * 0.04); }
 function recordRunnerScore(r) { if (!Number.isInteger(r?.batterIndex)) return; const players = r.batterSide === 'bat' ? lineup : opponentLineup; players[r.batterIndex].stats.runs++; }
 function setOcc(no) { occ = no; S.bases = [no[1] ? 1 : 0, no[2] ? 1 : 0, no[3] ? 1 : 0]; }
-function clearRun() { batterRace = null; pool.forEach(q => { q.on = false; q.g.visible = false; }); setOcc([null, null, null, null]); }
+function clearRun() { batterRace = null; pendingTagUp = null; pool.forEach(q => { q.on = false; q.g.visible = false; }); setOcc([null, null, null, null]); }
 
 function advance(n, ex, t0) {
   const no = [null, null, null, null], sp = n >= 4 ? 28 : 16;
@@ -537,18 +581,59 @@ function beginBuntRace(t0) {
   setOcc(advanced); const runner = newRunner(t0, 9.5); runner.to = 1; const play = hit.plan, raceTime = play.i / (60 * 1.7) + play.throwDuration / 1.7 + 0.2; batterRace = { kind: 'first', runner, callAt: t0 + raceTime * 1000 }; S.phase = 'running';
 }
 function sprintBatter() { if (S.phase !== 'running' || !batterRace) return; const runner = batterRace.runner; runner.sp = Math.min(30, runner.sp + 3.2); snd(500 + runner.sp * 25, 0.045, 'triangle', 0.13); }
+
 function settleBatterRace() {
-  if (!batterRace) return; const runner = batterRace.runner, reachesFirst = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9, safe = reachesFirst && Math.random() < BASE_RUN_SUCCESS_SCALE;
+  if (!batterRace) return;
+  const runner = batterRace.runner;
+  
+  // 5% 수비 실책 (송구/포구 에러)
+  const isError = Math.random() < 0.05;
+  
+  if (batterRace.kind === 'sacfly') {
+    const safe = isError || (runner.g.position.distanceTo(BP[4]) < 1.0);
+    batterRace = null; targetTimeScale = 1.0; runner.sp = 0;
+    lastRace = { kind: 'batter', base: 4, wasSafe: safe, runner: runner };
+    if (safe) {
+      runner.g.position.copy(BP[4]); recordRunnerScore(runner); addScore(1); runner.on = false; runner.g.visible = false;
+      flash(isError ? '⚠️ 포구 실책! 득점!' : '세이프!', isError ? '포수가 송구를 놓쳤습니다!' : '희생플라이 득점!');
+      snd(760, 0.16, 'sine', 0.22, 1120);
+    } else {
+      runner.out = true; runner.h = 0; runner.on = false; runner.g.visible = false;
+      flash('아웃!', '홈 보살 아웃!'); snd(210, 0.2, 'sawtooth', 0.2, 90); addOut(1);
+    }
+    finishBatterPA(); S.phase = 'result'; board(); return;
+  }
+
+  const reachesFirst = runner.b >= 1 || runner.g.position.distanceTo(BP[1]) <= 0.9;
+  const safe = isError || (reachesFirst && Math.random() < BASE_RUN_SUCCESS_SCALE);
   batterRace = null; runner.to = safe ? 1 : runner.b; runner.b = safe ? 1 : runner.b; runner.sp = 0;
   lastRace = { kind: 'batter', base: 1, wasSafe: safe, runner: runner };
-  if (safe) { runner.g.position.copy(BP[1]); occ[1] = runner; setOcc(occ); S.hits++; recordBatterHit(1); flash('세이프!', '1루 세이프!'); snd(760, 0.16, 'sine', 0.22, 1120); } else { runner.out = true; recordBatterOut(); flash('아웃!', '1루 아웃!'); snd(210, 0.2, 'sawtooth', 0.2, 90); addOut(1); }
+  if (safe) {
+    runner.g.position.copy(BP[1]); occ[1] = runner; setOcc(occ);
+    if (!isError) S.hits++;
+    recordBatterHit(1);
+    flash(isError ? '⚠️ 1루 송구 실책!' : '세이프!', isError ? '수비수가 공을 흘렸습니다!' : '1루 세이프!');
+    snd(760, 0.16, 'sine', 0.22, 1120);
+  } else {
+    runner.out = true; recordBatterOut(); flash('아웃!', '1루 아웃!'); snd(210, 0.2, 'sawtooth', 0.2, 90); addOut(1);
+  }
   finishBatterPA(); S.phase = 'result'; board();
 }
 
 function finishStealRace(safe) {
-  const race = stealRace; if (!race) return; safe = safe && Math.random() < BASE_RUN_SUCCESS_SCALE; clearGameTimeout(stealTimerObj); stealTimerObj = null; stealRace = null; const { runner, runnerIdx, targetBase } = race;
+  const race = stealRace; if (!race) return;
+  const isError = Math.random() < 0.05;
+  safe = isError || (safe && Math.random() < BASE_RUN_SUCCESS_SCALE);
+  clearGameTimeout(stealTimerObj); stealTimerObj = null; stealRace = null; const { runner, runnerIdx, targetBase } = race;
   lastRace = { kind: 'steal', base: targetBase, wasSafe: safe, runner: runner };
-  if (safe) { runner.g.position.copy(BP[targetBase]); runner.b = targetBase; runner.to = targetBase; occ[targetBase] = runner; occ[runnerIdx] = null; setOcc(occ); flash('⚡ 도루 성공!', '완벽한 슬라이딩!'); snd(700, 0.15, 'sine', 0.25, 1000); } else { runner.out = true; runner.h = 0; occ[runnerIdx] = null; setOcc(occ); addOut(1); flash('도루 아웃!', '태그 아웃되었습니다.'); snd(200, 0.2, 'sawtooth', 0.3, 100); }
+  if (safe) {
+    runner.g.position.copy(BP[targetBase]); runner.b = targetBase; runner.to = targetBase; occ[targetBase] = runner; occ[runnerIdx] = null; setOcc(occ);
+    flash(isError ? '⚠️ 악송구 실책!' : '⚡ 도루 성공!', isError ? '송구가 빗나갔습니다.' : '완벽한 슬라이딩!');
+    snd(700, 0.15, 'sine', 0.25, 1000);
+  } else {
+    runner.out = true; runner.h = 0; occ[runnerIdx] = null; setOcc(occ); addOut(1);
+    flash('도루 아웃!', '태그 아웃되었습니다.'); snd(200, 0.2, 'sawtooth', 0.3, 100);
+  }
   isStealing = false; activeStealRunner = null; board();
 }
 function attemptSteal() {
@@ -571,13 +656,15 @@ function pitch() {
   const profile = DIFFICULTIES[difficulty], targetZone = Math.random() < profile.zoneRate, pData = PITCHERS[currentPitcherIdx];
   if (S.mode === 'bat') S.pt = pData.pitches[Math.floor(Math.random() * pData.pitches.length)];
   let tx = R(-0.5, 0.5), ty = R(-0.5, 0.5); if (!targetZone) { if (Math.random() < 0.6) tx = (Math.random() < 0.5 ? -1 : 1) * R(0.98, 1.3); else ty = (Math.random() < 0.5 ? -1 : 1) * R(0.98, 1.3); }
-  const curType = TYPES[S.pt], umpire = zoneCall(tx, ty), fatigue = pitcherFatigueFactor(), baseDur = R(curType.dur[0], curType.dur[1]) / (pData.speed * fatigue * profile.pitchSpeed), speedKmh = Math.round(18.4 / (baseDur / 1000) * 3.6);
+  
+  const currentHitter = S.mode === 'bat' ? lineup[battingOrderIndex] : opponentLineup[opponentBatterIndex];
+  const curType = TYPES[S.pt], umpire = zoneCall(tx, ty, currentHitter.eye || 3), fatigue = pitcherFatigueFactor(), baseDur = R(curType.dur[0], curType.dur[1]) / (pData.speed * fatigue * profile.pitchSpeed), speedKmh = Math.round(18.4 / (baseDur / 1000) * 3.6);
   pitcherStamina = Math.max(0, pitcherStamina - 1.1 / pData.endurance); savePitcherStamina();
   P = { tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable, speedKmh, release: V3(pData.releaseX, pData.releaseY, -17.8), curve: (Math.random() < 0.4 ? R(-1, 1) : 0) * curType.c * pData.break * fatigue, lift: R(0, 0.35) * curType.l, t0: simTime + WIND, dur: baseDur, done: false }; P.arrive = P.t0 + baseDur; S.phase = 'pitch'; sw = null; hit = null; board(); startTimingGauge(P.t0, P.arrive);
 }
 function bp(p, o) { const e = Math.min(p, 1.2), a = Math.sin(Math.min(p, 1) * Math.PI), rel = P.release; return o.set(rel.x + (P.tx * 0.4 - rel.x) * e + P.curve * a * 0.5, rel.y + (0.82 + P.ty * 0.5 - rel.y) * e + P.lift * a, rel.z + (0.1 - rel.z) * e); }
 
-function ready() { resetField(); P = null; hit = null; sw = null; isStealing = false; activeStealRunner = null; pitchCharge = null; targetTimeScale = 1.0; if (S.mode === 'bat' && pciEnabled) aim.copy(pciCenter); bt.visible = true; defensiveThrow = null; S.phase = 'aim'; flash(S.mode === 'pitch' ? '투구 준비' : '타격 준비', S.mode === 'bat' ? '투구를 지켜보세요.' : '구종 선택 후 투구'); board(); }
+function ready() { resetField(); P = null; hit = null; sw = null; isStealing = false; activeStealRunner = null; pitchCharge = null; targetTimeScale = 1.0; if (S.mode === 'bat' && pciEnabled) aim.copy(pciCenter); bt.visible = true; defensiveThrow = null; pendingTagUp = null; S.phase = 'aim'; flash(S.mode === 'pitch' ? '투구 준비' : '타격 준비', S.mode === 'bat' ? '투구를 지켜보세요.' : '구종 선택 후 투구'); board(); }
 function beginPitchCharge() { if (S.mode !== 'pitch' || S.phase !== 'aim' || pitchCharge) return; const wrap = $('timingWrap'), cursor = $('timingCursor'), hint = $('timingHint'); pitchCharge = { start: simTime, duration: 1100 }; wrap.style.display = 'block'; wrap.dataset.kind = 'pitch'; hint.textContent = '구간 안에서 SHIFT를 놓으세요'; hint.style.display = 'block'; cancelAnimationFrame(timingAnimId); const animateCharge = () => { if (!pitchCharge) return; const pct = C((simTime - pitchCharge.start) / pitchCharge.duration, 0, 1) * 100; cursor.style.left = pct + '%'; timingAnimId = requestAnimationFrame(animateCharge); }; timingAnimId = requestAnimationFrame(animateCharge); }
 function cancelPitchCharge() { if (!pitchCharge) return; pitchCharge = null; cancelAnimationFrame(timingAnimId); $('timingWrap').style.display = 'none'; $('timingHint').style.display = 'none'; }
 function releasePitchCharge() { if (!pitchCharge) return; const pct = C((simTime - pitchCharge.start) / pitchCharge.duration, 0, 1) * 100, quality = C(1 - Math.abs(pct - 75) / 18, 0, 1); pitchCharge = null; cancelAnimationFrame(timingAnimId); $('timingWrap').style.display = 'none'; $('timingHint').style.display = 'none'; flash(quality >= 0.82 ? '완벽한 릴리스!' : '릴리스 성공', quality > 0 ? '구속 보너스!' : ''); throwPitch(quality, true); }
@@ -585,8 +672,9 @@ function throwPitch(releaseQuality = 0, timedRelease = false) {
   const pData = PITCHERS[currentPitcherIdx]; if (S.mode === 'pitch') usedPitcherIds.add(pData.id);
   const T = TYPES[S.pt], quality = C(releaseQuality, 0, 1), fatigue = pitcherFatigueFactor(), timingControlPenalty = timedRelease ? 1 + (1 - quality) * 0.8 : 1, e = T.err * (pData.ctrl / 0.04) / fatigue * timingControlPenalty * (1 - quality * 0.1);
   let tx = C((aim.x + R(-e, e)) / 0.4, -1.3, 1.3), ty = C((aim.y + R(-e, e) - 0.82) / 0.5, -1.3, 1.3);
+  const currentHitter = S.mode === 'bat' ? opponentLineup[opponentBatterIndex] : lineup[battingOrderIndex];
   const dur = R(T.dur[0], T.dur[1]) / (pData.speed * fatigue * (1 + quality * 0.1)), speedKmh = Math.round(18.4 / (dur / 1000) * 3.6); pitcherStamina = Math.max(0, pitcherStamina - 1.1 / pData.endurance); savePitcherStamina();
-  const umpire = zoneCall(tx, ty), me = { tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable, speedKmh, release: V3(pData.releaseX, pData.releaseY, -17.8), curve: (T.c * pData.break * fatigue * (1 + quality * 0.55) + quality * 0.12) * (Math.random() < 0.5 ? -1 : 1), lift: T.l, t0: simTime + WIND, dur, done: false };
+  const umpire = zoneCall(tx, ty, currentHitter.eye || 3), me = { tx, ty, inZone: umpire.called, actualInZone: umpire.actual, challengeable: umpire.challengeable, speedKmh, release: V3(pData.releaseX, pData.releaseY, -17.8), curve: (T.c * pData.break * fatigue * (1 + quality * 0.55) + quality * 0.12) * (Math.random() < 0.5 ? -1 : 1), lift: T.l, t0: simTime + WIND, dur, done: false };
   me.arrive = me.t0 + me.dur; P = me; S.phase = 'pitch'; sw = null; hit = null;
   const sp = S.strikes === 2, aiChance = DIFFICULTIES[difficulty].aiContact;
   if (Math.random() < C((me.actualInZone ? (sp ? 0.95 : 0.75) : (sp ? 0.4 : 0.2)) * aiChance, 0, 0.98)) { const off = T.bias + 170 * (1 + Math.max(Math.abs(tx), Math.abs(ty)) * 0.8) * (R(-1, 1) + R(-1, 1)) / 1.5; setGameTimeout(() => { if (P !== me || S.phase !== 'pitch') return; sw = { t: simTime, ai: true }; resolve(off); }, me.arrive - CONTACT + off - simTime); }
@@ -596,16 +684,34 @@ function startTimingGauge(startT, arriveT) { const wrap = $('timingWrap'), curso
 const LABEL = { hr: '홈런!', double: '2루타', single: '안타', bunt: '번트!', groundout: '땅볼 아웃', flyout: '뜬공 아웃', foul: '파울', whiff: '헛스윙', strike: '스트라이크', ball: '볼' };
 const SPD = { hr: [36, 24], double: [27, 11], single: [21, 5.5], groundout: [15.5, 0.35], bunt: [6.8, 0.025], flyout: [17, 16], foul: [20, 12] };
 
+function triggerPassedBall(tt) {
+  flash('⚠️ 포수 포일!', '포수가 공을 뒤로 빠뜨렸습니다!');
+  snd(180, 0.2, 'sawtooth', 0.25);
+  // 루상 주자 진루
+  const no = [null, null, null, null];
+  for (let b = 3; b >= 1; b--) {
+    const r = occ[b];
+    if (!r) continue;
+    const t = b + 1; r.to = t; r.t0 = tt; r.sp = runnerSpeed(r, 16);
+    if (t >= 4) { recordRunnerScore(r); addScore(1); }
+    else no[t] = r;
+  }
+  setOcc(no);
+  // 공이 백스탑 방향으로 튐
+  defensiveThrow = { from: V3(0, 0.4, 0.9), to: V3(R(-2, 2), 0.1, 7.5), start: simTime, duration: 1200, thrower: 'passed', targetBase: 0 };
+}
+
 function resolve(off) {
   P.done = true; S.phase = 'result'; updatePitchInfo(P); let r, parts = [], perfectPerfect = false;
+  const hitter = S.mode === 'bat' ? lineup[battingOrderIndex] : opponentLineup[opponentBatterIndex];
   if (off === null) {
     r = P.inZone ? 'strike' : 'ball'; const wrongCall = P.inZone !== P.actualInZone; if (!P.actualInZone && Math.abs(P.tx) > 0.96 && Math.abs(P.ty) < 0.85 && Math.random() < 0.1) r = 'hbp';
     updateABS(P.tx, P.ty, `${r === 'strike' ? '스트라이크' : r === 'hbp' ? '몸에 맞음' : '볼'} 판정`, wrongCall);
     const safeToChallenge = r === 'strike' ? S.strikes < 2 : r === 'ball' ? S.balls < 3 : false; pendingABSCall = P.challengeable && safeToChallenge ? { called: r, actual: P.actualInZone ? 'strike' : 'ball', expires: simTime + 4500 } : null; snd(220, 0.08, 'triangle', 0.3, 90);
   } else {
     pendingABSCall = null; updateABS(P.tx, P.ty, '스윙 · 타격 판정');
-    const hitter = S.mode === 'bat' ? lineup[battingOrderIndex] : null, contactScale = hitter && !buntMode ? 1 - (hitter.contact - 3) * 0.035 : 1, powerBonus = hitter && !buntMode ? (hitter.power - 3) * 2.4 : 0;
-    pciInsideContact = false; let q = Math.max(0, Math.abs(off) * contactScale - powerBonus - (battingMode === 'power' && hitter ? 8 : 0)) + (P.actualInZone ? 0 : 70);
+    const contactScale = hitter && !buntMode ? 1 - (hitter.contact - 3) * 0.045 : 1, powerBonus = hitter && !buntMode ? (hitter.power - 3) * 2.8 : 0;
+    pciInsideContact = false; let q = Math.max(0, Math.abs(off) * contactScale - powerBonus - (battingMode === 'power' && hitter ? 10 : 0)) + (P.actualInZone ? 0 : 70);
     if (hitter && sw?.user && pciEnabled && !buntMode) { const radius = pciRadiusFor(hitter), pitchDistance = Math.hypot(P.tx * 0.4 - pciCenter.x, 0.82 + P.ty * 0.5 - pciCenter.y); pciInsideContact = pitchDistance <= radius; q *= pciInsideContact ? 0.76 : 1.15; }
     if (hitter && battingMode === 'contact' && !buntMode) q *= 0.78; perfectPerfect = !!(hitter && sw?.user && !buntMode && Math.abs(off) < 30 && P.actualInZone && (!pciEnabled || pciInsideContact)); if (perfectPerfect) q *= 0.52;
     if (buntMode && S.mode === 'bat' && sw?.user) { r = q < 82 ? 'bunt' : q < 140 ? 'foul' : 'whiff'; buntMode = false; board(); parts.push('번트 시도'); } else { if (off < -280) r = 'whiff'; else r = q < 6 ? 'hr' : q < 28 ? 'double' : q < 62 ? 'single' : q < 170 ? (Math.random() < 0.5 ? 'groundout' : 'flyout') : q < 245 ? 'foul' : 'whiff'; parts.push(perfectPerfect ? 'PERFECT PERFECT!' : off < 0 ? '타이밍 빠름' : '타이밍 늦음'); }
@@ -613,33 +719,60 @@ function resolve(off) {
     hrContactFrame = replayBuffer.length > 0 ? replayBuffer.length - 1 : 0;
   }
   lastPitchReview = { pitchName: TYPES[S.pt].name, speedKmh: P.speedKmh, called: off === null ? r : '스윙', actual: P.actualInZone ? 'strike' : 'ball', tx: P.tx, ty: P.ty, review: '' }; renderVideoReview();
+  
+  // 5% 포수 포일 (Passed Ball) - 스트라이크/볼/헛스윙 상황
+  const isPassedBall = (r === 'strike' || r === 'ball' || r === 'whiff') && Math.random() < 0.05;
+
   if (SPD[r]) {
     if (r !== 'foul' && r !== 'hr') setTimeout(() => { bt.visible = false; }, 560);
     const T = simTime + CONTACT, d = C(off / 110, -1, 1), ang = r === 'bunt' ? R(-0.08, 0.08) : r === 'foul' ? (d < 0 ? -1 : 1) * R(0.95, 1.3) : C(d, -0.7, 0.7) * 0.85, [vh, vy] = SPD[r];
-    const powerScale = S.mode === 'bat' && r !== 'bunt' ? (1 + (lineup[battingOrderIndex].power - 3) * 0.04) * (battingMode === 'power' ? 1.18 : 1) * (perfectPerfect ? 1.18 : 1) : 1;
+    const powerScale = S.mode === 'bat' && r !== 'bunt' ? (1 + (lineup[battingOrderIndex].power - 3) * 0.05) * (battingMode === 'power' ? 1.18 : 1) * (perfectPerfect ? 1.18 : 1) : 1;
     const s = vh * R(0.9, 1.1) * powerScale, path = sim(bp(C((T - P.t0) / P.dur, 0, 1), V3(0, 0, 0)), V3(Math.sin(ang) * s, vy * R(0.9, 1.1) * powerScale, -Math.cos(ang) * s), r === 'hr' ? 5.2 : 6.5);
     hit = { t: T, path, plan: null, hr: r === 'hr', bunt: r === 'bunt', chase: null };
     if (r !== 'hr' && r !== 'foul') {
       const possiblePlay = defend(path, r === 'bunt');
-      if (possiblePlay) { if (r === 'single' || r === 'double') { if (Math.random() < 0.25) r = possiblePlay.air ? 'flyout' : 'groundout'; } hit.plan = { f: possiblePlay.f, i: possiblePlay.i, air: possiblePlay.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover: F[0], throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.6 }; } else hit.chase = F[4];
+      if (possiblePlay) {
+        // 5% 수비 포구 실책
+        const errorCatch = Math.random() < 0.05;
+        if (errorCatch) {
+          r = 'single';
+          flash('⚠️ 외야/내야 포구 실책!', '공을 떨어뜨렸습니다!');
+        } else {
+          if (r === 'single' || r === 'double') { if (Math.random() < 0.25) r = possiblePlay.air ? 'flyout' : 'groundout'; }
+          hit.plan = { f: possiblePlay.f, i: possiblePlay.i, air: possiblePlay.air, out: r === 'groundout' || r === 'bunt' || r === 'flyout', cover: F[0], throwTo: r === 'groundout' || r === 'bunt' ? B1T.clone() : null, throwDuration: 1.6 };
+        }
+      } else hit.chase = F[4];
       if (S.mode === 'pitch' && (r === 'single' || r === 'double') && possiblePlay && possiblePlay.distance > 0.45 && Math.random() < 0.5) hit.fieldOpportunity = possiblePlay;
     }
   }
 
   const h0 = S.h, tt = hit ? hit.t : simTime, ex = hit && !hit.plan ? 1 : 0; let label = LABEL[r], dp = false;
 
+  if (isPassedBall) {
+    triggerPassedBall(tt);
+  }
+
   if (r === 'hr') { recordBatterHit(4); if (S.mode === 'bat') S.hr++; advance(4, 0, tt); }
   else if (r === 'double') { if (deferForFielding(2, tt, ex)) label = '호수비 찬스!'; else { recordBatterHit(2); advance(2, ex, tt); } }
   else if (r === 'single') { if (deferForFielding(1, tt, ex)) label = '호수비 찬스!'; else { recordBatterHit(1); advance(1, ex, tt); } }
   else if (r === 'bunt') { beginBuntRace(tt); label = '번트 1루 승부!'; }
   else if (r === 'groundout') { if (!occ[1] && hit && hit.plan && hit.plan.throwTo) { beginBatterRace(tt); label = '1루 승부!'; } else { recordBatterOut(); dp = !!(occ[1] && S.outs <= 1 && Math.random() < 0.6); if (dp) label = '병살타!'; addOut(dp ? 2 : 1); } }
-  else if (r === 'flyout') { recordBatterOut(); addOut(1); }
+  else if (r === 'flyout') {
+    recordBatterOut(); addOut(1);
+    // 0아웃, 1아웃 3루 주자가 있을 때 수동 희생플라이 기회 부여
+    if (S.outs <= 2 && occ[3] && S.mode === 'bat') {
+      const catchAt = tt + (hit.plan ? hit.plan.i / 60 / 1.7 * 1000 : 1200);
+      pendingTagUp = { runner: occ[3], catchAt, throwDuration: 1800 };
+      label = '태그업 대기!';
+      parts.push('공이 잡히는 순간 질주 버튼을 누르세요!');
+    }
+  }
   else if (r === 'foul') { if (S.strikes < 2) S.strikes++; }
   else if (r === 'strike' || r === 'whiff') { S.strikes++; if (S.strikes >= 3) { label = '삼진 아웃!'; recordBatterOut(); if (S.mode === 'pitch') currentPitcherStats().strikeouts++; else opponentPitcherStats.strikeouts++; addOut(1); } }
   else if (r === 'ball') { S.balls++; if (S.balls >= 4) { label = '볼넷'; walk(tt); } }
   else if (r === 'hbp') { label = '몸에 맞는 공'; walk(tt); }
 
-  if (!batterRace && !pendingFieldingPlay) finishBatterPA();
+  if (!batterRace && !pendingFieldingPlay && !pendingTagUp) finishBatterPA();
   flash(label, parts.join(', ')); if (r === 'hr') triggerHomeRunCelebration(); board();
   const afterPlayWait = r === 'hr' ? 3800 : S.h !== h0 ? 2600 : 2200;
   setGameTimeout(() => { targetTimeScale = 1.0; if (r === 'hr') startHomeRunCinematicReplay(); else continueAfterPlay(h0); }, afterPlayWait);
@@ -656,7 +789,7 @@ function startHomeRunCinematicReplay() {
     { name: '포수 1인칭', pos: V3(0, 1.05, 1.6), lookOff: V3(0, 0.5, -18.4), fov: 58, text: '앵글 3: 포수 시점' },
     { name: '타자 앞아래', pos: V3(-0.5, 0.2, -0.8), lookOff: V3(0, 0.8, 0.1), fov: 64, text: '앵글 4: 타자 로우앵글' }
   ];
-  hrSequence = { angles, curIdx: 0, startFrame: Math.max(0, hrContactFrame - 20), endFrame: replayBuffer.length - 1 }; replayFrameIndex = hrSequence.startFrame; flash('홈런 리플레이', angles[0].text);
+  hrSequence = { angles, curIdx: 0, startFrame: Math.max(0, hrContactFrame - 30), endFrame: replayBuffer.length - 1 }; replayFrameIndex = hrSequence.startFrame; flash('홈런 리플레이', angles[0].text);
 }
 
 function end() { S.phase = 'over'; const d = S.sc[0] - S.sc[1]; board(); $('types').hidden = true; overlay(d > 0 ? '승리!' : d < 0 ? '패배' : '무승부', `${teamNames[0]} ${S.sc[0]} : ${S.sc[1]} ${teamNames[1]}\n안타 ${S.hits}개, 홈런 ${S.hr}개`); }
@@ -667,8 +800,8 @@ function syncBatterAppearance() { const currentHitter = S.mode === 'bat' ? lineu
 function selectCamera(mode) { if (!['plate', 'pitcher', 'batter'].includes(mode)) return; cameraMode = mode; document.querySelectorAll('[data-camera]').forEach(button => button.classList.toggle('on', button.dataset.camera === cameraMode)); board(); }
 function renderVideoReview() { const review = lastPitchReview, box = $('videoReviewText'); if (!review) { box.textContent = '판독할 투구 기록이 없습니다.'; return; } box.textContent = `${review.pitchName} · ${review.speedKmh} km/h\n심판 판정: ${review.called}\nABS 기준: ${review.actual}\n존 위치: X ${review.tx.toFixed(2)} · Y ${review.ty.toFixed(2)}`; }
 
-function openVideoReview() { renderVideoReview(); $('videoReviewPanel').hidden = false; isReviewPaused = true; } // 진행 일시정지 (TimeScale 0)
-function closeVideoReview() { $('videoReviewPanel').hidden = true; isReviewPaused = false; } // 재개
+function openVideoReview() { renderVideoReview(); $('videoReviewPanel').hidden = false; isReviewPaused = true; }
+function closeVideoReview() { $('videoReviewPanel').hidden = true; isReviewPaused = false; }
 
 function startSlowReplay() {
   if (replayBuffer.length < 10) return;
@@ -676,21 +809,11 @@ function startSlowReplay() {
   $('replayBadge').style.display = 'block'; flash('비디오 판독', '슬로우 리플레이 재생 중');
 }
 
-// 수동 아웃/세이프 조작
 $('overrideOutBtn').addEventListener('click', () => {
-  if (lastRace && lastRace.wasSafe) {
-    lastRace.wasSafe = false; occ[lastRace.base] = null; setOcc(occ); addOut(1);
-    lastRace.runner.on = false; lastRace.runner.g.visible = false;
-    flash('판정 번복', '아웃으로 정정되었습니다.'); board();
-  } else flash('변경 불가', '이미 아웃이거나 최근 주루 기록이 없습니다.');
+  if (lastRace && lastRace.wasSafe) { lastRace.wasSafe = false; occ[lastRace.base] = null; setOcc(occ); addOut(1); lastRace.runner.on = false; lastRace.runner.g.visible = false; flash('판정 번복', '아웃으로 정정되었습니다.'); board(); } else flash('변경 불가', '이미 아웃이거나 최근 주루 기록이 없습니다.');
 });
 $('overrideSafeBtn').addEventListener('click', () => {
-  if (lastRace && !lastRace.wasSafe) {
-    if (S.outs > 0) {
-      lastRace.wasSafe = true; S.outs = Math.max(0, S.outs - 1); lastRace.runner.b = lastRace.base; lastRace.runner.to = lastRace.base; lastRace.runner.on = true; lastRace.runner.g.visible = true; lastRace.runner.g.position.copy(BP[lastRace.base]); occ[lastRace.base] = lastRace.runner; setOcc(occ);
-      flash('판정 번복', '세이프로 정정되었습니다.'); board();
-    }
-  } else flash('변경 불가', '이미 세이프거나 최근 주루 기록이 없습니다.');
+  if (lastRace && !lastRace.wasSafe) { if (S.outs > 0) { lastRace.wasSafe = true; S.outs = Math.max(0, S.outs - 1); lastRace.runner.b = lastRace.base; lastRace.runner.to = lastRace.base; lastRace.runner.on = true; lastRace.runner.g.visible = true; lastRace.runner.g.position.copy(BP[lastRace.base]); occ[lastRace.base] = lastRace.runner; setOcc(occ); flash('판정 번복', '세이프로 정정되었습니다.'); board(); } } else flash('변경 불가', '이미 세이프거나 최근 주루 기록이 없습니다.');
 });
 
 function start(m) {
@@ -698,8 +821,8 @@ function start(m) {
   cancelPitchCharge(); S.fm = S.mode = m || S.fm; S.h = 0; S.sc = [0, 0]; buntMode = false; battingMode = 'normal'; pciEnabled = false; isReviewPaused = false; isTimeOut = false; lastRace = null;
   teamNames = [$('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀', $('opponentTeamName')?.value?.trim().slice(0, 12) || '상대 팀'];
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
-  lineup = Array.from({ length: 9 }, (_, i) => { const entered = $(`lineupName${i}`)?.value?.trim(); return { name: entered || `${i + 1}번 타자`, speed: 1 + Math.floor(Math.random() * 5), power: 1 + Math.floor(Math.random() * 5), contact: 1 + Math.floor(Math.random() * 5), side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }; });
-  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false; opponentPitcherStats = emptyPitcherStats(); opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() })); opponentBatterIndex = 0; batterPAMode = null; lastPitchReview = null; $('videoReviewPanel').hidden = true; syncBatterAppearance();
+  lineup = Array.from({ length: 9 }, (_, i) => { const entered = $(`lineupName${i}`)?.value?.trim(); return { name: entered || `${i + 1}번 타자`, speed: 1 + Math.floor(Math.random() * 5), power: 1 + Math.floor(Math.random() * 5), contact: 1 + Math.floor(Math.random() * 5), eye: 1 + Math.floor(Math.random() * 5), side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats() }; });
+  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false; opponentPitcherStats = emptyPitcherStats(); opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats(), speed: 3, power: 3, contact: 3, eye: 3 })); opponentBatterIndex = 0; batterPAMode = null; lastPitchReview = null; $('videoReviewPanel').hidden = true; syncBatterAppearance();
   pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()])); pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
   challengeCount = 2; pendingABSCall = null; clearRun(); bt.visible = true; defensiveThrow = null; $('types').hidden = S.mode !== 'pitch'; board(); P = null; hit = null; sw = null; resetField();
   
@@ -718,7 +841,6 @@ function act() {
   sw = { t: simTime, user: true, bunt: buntMode }; resolve(simTime + CONTACT - P.arrive);
 }
 
-// 마우스 휠 줌 (Zoom In/Out)
 stage.addEventListener('wheel', e => { e.preventDefault(); camZoom += e.deltaY * 0.001; camZoom = C(camZoom, 0.4, 1.8); });
 
 /* ---------------- 메인 틱 (Tick) ---------------- */
@@ -726,11 +848,9 @@ function tick(realNow) {
   const realDt = Math.min(0.04, (realNow - lastReal) / 1000); lastReal = realNow;
   
   let dt = 0;
-  // 비디오 판독이나 ESC 타임 아웃 중이면 물리 연산(dt) 스킵 (화면 정지)
   if (!isReviewPaused && !isTimeOut) {
     currentTimeScale += (targetTimeScale - currentTimeScale) * Math.min(1, realDt * 8);
     dt = realDt * currentTimeScale; simTime += dt * 1000;
-    
     for (let i = gameTimers.length - 1; i >= 0; i--) {
       const t = gameTimers[i]; if (t.canceled) { gameTimers.splice(i, 1); continue; }
       if (simTime >= t.triggerAt) { gameTimers.splice(i, 1); try { t.fn(); } catch(e){ console.error(e); } }
@@ -740,7 +860,8 @@ function tick(realNow) {
   // --- 리플레이 모드 ---
   if (isReplaying) {
     if (replayBuffer.length > 0) {
-      const snap = replayBuffer[replayFrameIndex];
+      const snapIndex = Math.floor(replayFrameIndex);
+      const snap = replayBuffer[Math.min(snapIndex, replayBuffer.length - 1)];
       if (snap) {
         ball.visible = snap.ballVis; ball.position.copy(snap.ballPos); shd.visible = snap.ballVis; shd.position.set(snap.ballPos.x, 0.06, snap.ballPos.z);
         bt.visible = snap.btVis; bt.position.copy(snap.btPos); bt.rotation.y = snap.btRotY; swingArms.rotation.copy(snap.armsRot); bat.rotation.copy(snap.batRot);
@@ -749,24 +870,25 @@ function tick(realNow) {
       }
 
       if (hrSequence) {
+        const distToContact = Math.abs(replayFrameIndex - hrContactFrame);
+        let replaySpeed = (distToContact < 25) ? 0.15 : 0.75;
+        
         const curAngle = hrSequence.angles[hrSequence.curIdx];
         cam.position.lerp(curAngle.pos, 0.1); look.lerp(curAngle.lookOff.lengthSq() > 0 ? curAngle.lookOff : (snap ? snap.ballPos : DEF), 0.1); cam.lookAt(look);
         if (cam.fov !== curAngle.fov * camZoom) { cam.fov = curAngle.fov * camZoom; cam.updateProjectionMatrix(); }
         
-        replayFrameIndex++;
-        if (replayFrameIndex > hrSequence.endFrame) {
+        replayFrameIndex += replaySpeed;
+        let currentEndFrame = (hrSequence.curIdx === 0) ? hrSequence.endFrame : Math.min(hrSequence.endFrame, hrContactFrame + 40);
+        
+        if (replayFrameIndex > currentEndFrame) {
           hrSequence.curIdx++;
           if (hrSequence.curIdx < hrSequence.angles.length) { replayFrameIndex = hrSequence.startFrame; flash('홈런 리플레이', hrSequence.angles[hrSequence.curIdx].text); } 
           else { isReplaying = false; hrSequence = null; $('replayBadge').style.display = 'none'; continueAfterPlay(S.h); }
         }
       } else {
-        // 비디오 판독(리플레이) 중에도 카메라는 상황 발생 위치(공)를 추적함
         if (snap) { lookT.set(snap.ballPos.x, Math.max(0.5, snap.ballPos.y), snap.ballPos.z); liveCamPos.set(snap.ballPos.x * 0.5, Math.max(2, snap.ballPos.y + 1), snap.ballPos.z + 5); cam.position.lerp(liveCamPos, 0.1); look.lerp(lookT, 0.1); cam.lookAt(look); }
-        replayFrameIndex++;
-        if (replayFrameIndex >= replayBuffer.length) {
-          isReplaying = false; $('replayBadge').style.display = 'none';
-          $('videoReviewPanel').hidden = false; // 재생 끝나면 수동 조작을 위해 패널 다시 띄움
-        }
+        replayFrameIndex += 0.4;
+        if (replayFrameIndex >= replayBuffer.length) { isReplaying = false; $('replayBadge').style.display = 'none'; $('videoReviewPanel').hidden = false; }
       }
     }
     const finalFovReplay = (hrSequence ? hrSequence.angles[hrSequence.curIdx].fov : 54) * camZoom;
@@ -774,7 +896,6 @@ function tick(realNow) {
     ren.render(scene, cam); requestAnimationFrame(tick); return;
   }
 
-  // 버퍼 저장 (프레임 단위 기록)
   if (S.phase !== 'idle' && S.phase !== 'over' && !isReviewPaused && !isTimeOut) {
     replayBuffer.push({ ballPos: ball.position.clone(), ballVis: ball.visible, btPos: bt.position.clone(), btRotY: bt.rotation.y, btVis: bt.visible, armsRot: swingArms.rotation.clone(), batRot: bat.rotation.clone(), fielders: F.map(f => f.g.position.clone()), runners: pool.map(r => ({ vis: r.g.visible, pos: r.g.position.clone() })) });
     if (replayBuffer.length > REPLAY_MAX_FRAMES) replayBuffer.shift();
@@ -782,7 +903,6 @@ function tick(realNow) {
 
   if (S.phase === 'pitch' && !P.done && simTime + CONTACT > P.arrive + 200) resolve(null);
 
-  // 투구 애니메이션
   const pitcher = PITCHERS[currentPitcherIdx]; arm.position.set(pitcher.releaseX, pitcher.releaseY + 0.08, -18.4);
   const deliveryStart = P ? P.t0 - WIND : 0, deliveryActive = !!P && simTime >= deliveryStart && simTime <= deliveryStart + 660, deliveryT = deliveryActive ? C((simTime - deliveryStart) / 660, 0, 1) : 1, drive = deliveryT < 0.48 ? deliveryT / 0.48 : 1 - (deliveryT - 0.48) / 0.52, recover = deliveryT < 0.48 ? 0 : (deliveryT - 0.48) / 0.52;
   if (!deliveryActive) arm.rotation.set(-0.2, 0, 0); else if (pitcher.form === 'over') arm.rotation.set(deliveryT < 0.48 ? -0.2 - 3.15 * drive : -3.35 + 3.15 * recover, 0.04, 0.08); else if (pitcher.form === 'side') arm.rotation.set(-0.32 - 0.35 * drive + 0.67 * recover, 0, deliveryT < 0.48 ? -0.18 - 2.0 * drive : -2.18 + 2.0 * recover); else if (pitcher.form === 'under') arm.rotation.set(deliveryT < 0.48 ? 0.55 + 1.05 * drive : 1.6 - 1.8 * recover, 0.12, 0.25 + 0.3 * drive - 0.37 * recover); else arm.rotation.set(deliveryT < 0.48 ? -0.1 - 2.45 * drive : -2.55 + 2.45 * recover, 0.12, deliveryT < 0.48 ? 0.18 - 0.48 * drive : -0.3 + 0.3 * recover);
@@ -792,7 +912,6 @@ function tick(realNow) {
     if (defensiveThrow.thrower === 'pitcher') arm.rotation.z = -1.5 * throwPose; else { catcher.rotation.y += (defensiveThrow.targetBase === 2 ? -0.3 : 0.3) * throwPose; catcher.position.y = 0.08 + 0.5 * throwPose; }
   } else { catcher.rotation.y = Math.PI; catcher.position.y = 0.08; }
 
-  // 배팅 스윙 애니메이션
   if (sw?.bunt) { const hold = 1 - C((simTime - sw.t - 250) / 260, 0, 1); swingArms.rotation.set(-0.28 * hold, 0.08 * hold, 0.02 * hold); bat.position.x = (batterSide === 'L' ? 0.58 : 0.48); bat.rotation.set(0, 0, Math.PI / 2 * hold + BAT_READY * (1 - hold)); }
   else if (sw) {
     bat.position.x = 0.28; const elapsed = simTime - sw.t, smooth = x => { x = C(x, 0, 1); return x * x * (3 - 2 * x); };
@@ -803,7 +922,6 @@ function tick(realNow) {
   
   if (homeRunCelebrationUntil > simTime) { const celebrationT = simTime / 1000; bt.visible = true; swingArms.rotation.set(-0.32, 0.12, 0.82 + Math.sin(celebrationT * 7) * 0.12); }
 
-  // 주자 진루 업데이트
   pool.forEach(r => {
     if (!r.on || simTime < r.t0) return;
     if (r.b >= r.to) { if (r.out && !r.h) { r.h = 1; setTimeout(() => { r.on = false; r.g.visible = false; }, 500); } else if (r.to >= 4) { r.on = false; r.g.visible = false; } return; }
@@ -811,9 +929,15 @@ function tick(realNow) {
     if (d <= st) { q.x = tg.x; q.z = tg.z; r.b++; } else { q.x += dx / d * st; q.z += dz / d * st; } r.g.rotation.y = Math.atan2(dx, dz);
   });
   if (stealRace) { const atBase = stealRace.runner.b >= stealRace.targetBase || stealRace.runner.g.position.distanceTo(BP[stealRace.targetBase]) <= 0.7; if (atBase && simTime < stealRace.throwAt) finishStealRace(true); }
-  if (batterRace && (simTime >= batterRace.callAt || batterRace.runner.b >= 1)) settleBatterRace();
+  
+  // 희생플라이 홈 접전 슬로우모션 연출
+  if (batterRace && batterRace.kind === 'sacfly') {
+    const distToHome = batterRace.runner.g.position.distanceTo(BP[4]);
+    if (distToHome < 6.0) targetTimeScale = 0.25; // 홈 접전 슬로우모션
+  }
+  
+  if (batterRace && (simTime >= batterRace.callAt || batterRace.runner.b >= (batterRace.kind === 'sacfly' ? 4 : 1))) settleBatterRace();
 
-  // 수비수 이동
   if (hit && hit.path && hit.path.length > 0) {
     const k = (simTime - hit.t) / 1000 * 1.7;
     if (k >= 0) {
@@ -830,7 +954,6 @@ function tick(realNow) {
   const activeHitter = lineup[battingOrderIndex], pciRadius = pciRadiusFor(activeHitter), pciAim = S.phase === 'aim' ? aim : pciCenter;
   pciRing.visible = S.mode === 'bat' && pciEnabled && (S.phase === 'aim' || S.phase === 'pitch'); pciRing.position.set(pciAim.x, pciAim.y, 0.15); pciRing.scale.set(pciRadius, pciRadius * 1.12, 1);
 
-  // 공 위치
   let vis = false;
   if (P && simTime >= P.t0 && !(hit && simTime >= hit.t)) { const p = (simTime - P.t0) / P.dur; if (p < 1.15) { bp(p, ball.position); vis = true; ball.rotation.x -= dt * 22; } }
   let follow = false;
@@ -843,34 +966,34 @@ function tick(realNow) {
     } else if (plan) { ball.position.copy(hit.path[Math.min(rawIndex, plan.i)]); vis = k < plan.i / 60 + 0.14; follow = true; } else { ball.position.copy(hit.path[rawIndex]); vis = rawIndex < n - 1; follow = true; }
     ball.rotation.x -= dt * 18;
   }
-  // 도루 송구 추적 (카메라 포함)
   if (defensiveThrow && simTime >= defensiveThrow.start) {
     const progress = C((simTime - defensiveThrow.start) / defensiveThrow.duration, 0, 1);
     ball.position.lerpVectors(defensiveThrow.from, defensiveThrow.to, progress); ball.position.y += Math.sin(progress * Math.PI) * 2.2; ball.rotation.x -= dt * 28; vis = progress < 1; if (progress >= 1) defensiveThrow = null;
   }
   ball.visible = vis; shd.visible = vis; if (vis) { shd.position.set(ball.position.x, 0.06, ball.position.z); shd.scale.setScalar(1 / (1 + ball.position.y * 0.12)); }
 
-  // ---------------- 카메라 시점 최적화 (도루, 홈런 포함) ----------------
   catcher.visible = !(cameraMode === 'batter');
   
-  if (defensiveThrow && simTime >= defensiveThrow.start) {
-    // 1. 도루 시 송구 추적 카메라
+  if (isStealing && activeStealRunner) {
+    // 도루 주자 시점 카메라 (주자 뒤에서 다음 베이스를 바라봄)
+    const runPos = activeStealRunner.g.position;
+    const tgtPos = BP[activeStealRunner.to];
+    const dir = new THREE.Vector3().subVectors(tgtPos, runPos).normalize();
+    lookT.copy(tgtPos).setY(1.0);
+    liveCamPos.set(runPos.x - dir.x * 3.5, 2.2, runPos.z - dir.z * 3.5);
+    fov = 60;
+  } else if (defensiveThrow && simTime >= defensiveThrow.start) {
     lookT.set(ball.position.x, ball.position.y, ball.position.z);
-    liveCamPos.set(ball.position.x - 2, Math.max(1.5, ball.position.y + 1), ball.position.z + 4);
-    fov = 50;
+    liveCamPos.set(ball.position.x - 2, Math.max(1.5, ball.position.y + 1), ball.position.z + 4); fov = 50;
   } else if (hit?.hr && simTime >= hit.t) {
-    // 2. 홈런 후방 우측 상단 트레일링 뷰
     lookT.set(ball.position.x, ball.position.y, ball.position.z);
-    liveCamPos.set(ball.position.x - 2.5, Math.max(1.8, ball.position.y + 1.5), ball.position.z + 4.5);
-    fov = 54;
+    liveCamPos.set(ball.position.x - 2.5, Math.max(1.8, ball.position.y + 1.5), ball.position.z + 4.5); fov = 54;
   } else if (follow) {
     lookT.set(ball.position.x * 0.9, Math.max(1, ball.position.y * 0.8), Math.min(ball.position.z, -6));
   } else {
-    if (cameraMode === 'pitcher') {
-      desiredCamPos = V3(1.5, 1.8, -21.4); lookT.set(0, 0.85, 0); fov = 55;
-    } else if (cameraMode === 'batter') {
-      desiredCamPos = V3(0, 1.45, 1.2); lookT.set(0, 1.0, -18.4); fov = 65;
-    } else { desiredCamPos = camPos.clone(); lookT.copy(DEF); fov = 52; }
+    if (cameraMode === 'pitcher') { desiredCamPos = V3(1.5, 1.8, -21.4); lookT.set(0, 0.85, 0); fov = 55; }
+    else if (cameraMode === 'batter') { desiredCamPos = V3(0, 1.45, 1.2); lookT.set(0, 1.0, -18.4); fov = 65; }
+    else { desiredCamPos = camPos.clone(); lookT.copy(DEF); fov = 52; }
     liveCamPos.lerp(desiredCamPos, 0.08); 
   }
   
@@ -912,7 +1035,6 @@ addEventListener('keydown', e => {
   if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if (e.code === 'Escape') {
     e.preventDefault();
-    // 타임 선언 (ESC)
     if (!isTimeOut && !isReviewPaused && !isReplaying && S.phase !== 'idle' && S.phase !== 'over') {
       isTimeOut = true; flash('타임 선언!', '3초간 경기가 정지됩니다.');
       setTimeout(() => { isTimeOut = false; flash('경기 재개', '타임이 해제되었습니다.'); board(); }, 3000);
