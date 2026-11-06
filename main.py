@@ -564,7 +564,7 @@ const pit = figure(0xffffff, 0x1b2a5c, 0, -18.4); pit.position.y = 0.28; pit.rot
 const arm = new THREE.Group(); arm.position.set(0.24, 2, -18.4); scene.add(arm);
 mk(new THREE.CylinderGeometry(0.05, 0.045, 0.62, 8), mat(0xffffff), 0, -0.31, 0, arm);
 const catcher = figure(0x24385f, 0x1b2a5c, 0, 0.9);
-catcher.scale.set(0.92, 0.72, 0.92); catcher.position.set(0.72, 0.08, -0.75);
+catcher.scale.set(0.92, 0.72, 0.92); catcher.position.set(0, 0.08, 0.9);
 const catcherMask = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.32, 0.25, 0.12)), new THREE.LineBasicMaterial({ color: 0xd1d5db }));
 catcherMask.position.set(0, 1.45, 0.11); catcher.add(catcherMask);
 mk(new THREE.SphereGeometry(0.13, 10, 8), mat(0xdbeafe), 0.3, 0.96, 0.2, catcher);
@@ -1968,3 +1968,5 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
+
+
