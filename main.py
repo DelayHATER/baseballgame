@@ -48,7 +48,6 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
 #manualThrowBtn:active { transform:translate(-50%,-50%) scale(0.95); background:#991b1b; }
 
 #ov { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: 7px; padding: 12px; overflow-y:auto; background: rgba(6,13,23,0.94); backdrop-filter: blur(4px); z-index: 40; }
-#ov[hidden] { display: none !important; }
 
 .btn-action { background: linear-gradient(135deg, #fbbf24, #d97706); color: #0b1726; font-weight: 800; border-radius: 8px; box-shadow: 0 4px 12px rgba(251,191,36,0.3); cursor: pointer; }
 .btn-action:active { transform: translateY(1px); }
@@ -98,7 +97,6 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
 @keyframes blink { 0%{opacity:1;} 100%{opacity:0.4;} }
 #videoReviewPanel { position:absolute; inset:50% auto auto 50%; transform:translate(-50%,-50%); z-index:35; width:min(320px,88%); padding:12px; border:1px solid #64748b; border-radius:10px; background:rgba(2,6,23,.96); color:#f8fafc; box-shadow:0 8px 30px rgba(0,0,0,.6); }
 #videoReviewText { white-space:pre-line; }
-#videoReviewPanel[hidden] { display:none !important; }
 @media (max-width:480px) { #gameHud { width:min(205px,64%); right:6px; bottom:46px; padding:5px; gap:4px; } #gameHud #pitchInfo { font-size:10px; } #gameHud .hud-cameras button, #videoReviewBtn { font-size:8px; } }
 </style>
 </head>
@@ -122,7 +120,7 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
     <div id="manualThrowBtn">1루 송구! (홀드)</div>
     
     <!-- 비디오 판독 패널 -->
-    <div id="videoReviewPanel" hidden>
+    <div id="videoReviewPanel" style="display: none;">
       <b class="block text-amber-400 text-base mb-2">📺 비디오 판독 & 수동 조작</b>
       <div id="videoReviewText" class="text-xs leading-relaxed text-slate-200">아직 판독할 투구가 없습니다.</div>
       <div class="mt-3 pt-3 border-t border-slate-700 text-xs">
@@ -139,18 +137,34 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
     </div>
     
     <!-- ESC 타임 메뉴 패널 -->
-    <div id="timeoutMenu" class="absolute inset-0 bg-black/85 z-40 flex flex-col items-center justify-center p-4 backdrop-blur-sm" hidden>
+    <div id="timeoutMenu" class="absolute inset-0 bg-black/85 z-40 flex flex-col items-center justify-center p-4 backdrop-blur-sm" style="display: none;">
       <h2 class="text-4xl text-amber-400 font-title mb-8 drop-shadow-lg">타임 선언</h2>
       <button id="resumeGameBtn" class="btn-action w-64 py-4 text-lg mb-4">경기 재개</button>
       <button id="openPinchHitterBtn" class="bg-blue-700 hover:bg-blue-600 text-white font-bold w-64 py-4 text-lg rounded-lg border border-blue-500 shadow-lg mb-4">대타 기용</button>
     </div>
 
     <!-- 대타 기용 모달 -->
-    <div id="pinchHitterModal" class="absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4" hidden>
-      <h2 class="text-2xl text-amber-400 font-title mb-4">대타 기용 (랜덤 생성)</h2>
-      <p class="text-xs text-slate-300 mb-4 text-center">상대 투수와 강점/약점이 일치하면 타격에 큰 영향을 줍니다.</p>
-      <div id="pinchHitterList" class="flex flex-col gap-3 w-full max-w-sm"></div>
-      <button id="closePinchHitterBtn" class="stadium-choice w-full max-w-sm mt-4 py-3">취소</button>
+    <div id="pinchHitterModal" class="absolute inset-0 bg-slate-900/95 z-50 flex flex-col items-center justify-center p-4" style="display: none;">
+      <h2 class="text-2xl text-amber-400 font-title mb-3">대타 기용 (랜덤 생성)</h2>
+      <p class="text-[11px] text-slate-300 mb-3 text-center">투수의 폼/손 방향과 강점/약점이 일치하면<br>타격에 큰 영향을 줍니다.</p>
+      
+      <!-- 교체할 타순 선택 -->
+      <div class="w-full max-w-sm mb-3">
+        <label class="text-xs text-amber-200 font-bold block mb-1">교체할 타순 선택</label>
+        <select id="pinchTargetSelect" class="w-full bg-slate-800 text-white p-2 rounded border border-slate-600 outline-none text-sm"></select>
+      </div>
+
+      <div id="pinchHitterList" class="flex flex-col gap-2 w-full max-w-sm max-h-60 overflow-y-auto pr-1"></div>
+      <button id="closePinchHitterBtn" class="stadium-choice w-full max-w-sm mt-3 py-2">취소</button>
+    </div>
+
+    <!-- 투수 교체 모달 -->
+    <div id="pitcherModal" class="absolute inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4" style="display: none;">
+      <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-sm w-full shadow-2xl">
+        <h3 class="font-title text-xl text-amber-400 mb-3">투수 교체</h3>
+        <div id="pitcherList" class="flex flex-col gap-2 mb-4 max-h-60 overflow-y-auto"></div>
+        <button id="closePitcherModal" type="button" class="w-full bg-slate-800 text-slate-300 py-2.5 rounded-lg font-bold border border-slate-700 cursor-pointer">닫기</button>
+      </div>
     </div>
 
     <div id="absPanel"><b>ABS 존 · 최근 투구</b><div id="absGrid"></div><span id="absCall">아직 투구 기록 없음</span><button id="challengeBtn" class="stadium-choice" disabled>⚖️ ABS 챌린지 대기 (2)</button></div>
@@ -252,14 +266,6 @@ body { margin: 0; background: var(--deep); color: var(--chalk); font-family: 'No
   </section>
 </main>
 
-<div id="pitcherModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4" hidden>
-  <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-sm w-full shadow-2xl">
-    <h3 class="font-title text-xl text-amber-400 mb-3">투수 교체</h3>
-    <div id="pitcherList" class="flex flex-col gap-2 mb-4 max-h-60 overflow-y-auto"></div>
-    <button id="closePitcherModal" type="button" class="w-full bg-slate-800 text-slate-300 py-2.5 rounded-lg font-bold border border-slate-700 cursor-pointer">닫기</button>
-  </div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (() => {
@@ -282,12 +288,8 @@ let camZoom = 1.0;
 let lastRace = null, pendingTagUp = null;
 let manualThrowMode = false, throwCharge = null;
 
-const TRAITS = [
-  {id: 'L', name: '좌완'}, {id: 'R', name: '우완'},
-  {id: 'over', name: '오버핸드'}, {id: 'under', name: '언더핸드'},
-  {id: 'side', name: '사이드암'}, {id: 'threeQuarter', name: '쓰리쿼터'}
-];
-let currentPinchHitter = null;
+const TRAITS = [{id: 'L', name: '좌완'}, {id: 'R', name: '우완'}, {id: 'over', name: '오버핸드'}, {id: 'under', name: '언더핸드'}, {id: 'side', name: '사이드암'}, {id: 'threeQuarter', name: '쓰리쿼터'}];
+const PINCH_NAMES = ['김대타', '이한방', '박승부', '최역전', '정클러치', '강스윙', '조타격', '장홈런'];
 
 const PITCHERS = [
   { id: 0, title: 'MONSTER', name: '류현진', hand: 'L', form: 'over', formName: '오버핸드', releaseX: -0.24, releaseY: 1.92, speed: 1.15, break: 1.2, ctrl: 0.027, endurance: 1.12, pitches: [0,2,3,4], desc: '좌완 · 구속 A · 변화 A · 제구 S' },
@@ -299,9 +301,6 @@ const PITCHERS = [
   { id: 6, title: '무쇠팔', name: '최동원', hand: 'R', form: 'over', formName: '역동적 오버', releaseX: 0.3, releaseY: 1.95, speed: 1.18, break: 1.3, ctrl: 0.03, endurance: 1.4, pitches: [0,3,2], desc: '우완 · 강철체력 S · 구속 A · 폭포수 커브' },
   { id: 7, title: '석민어린이', name: '윤석민', hand: 'R', form: 'threeQuarter', formName: '쓰리쿼터', releaseX: 0.35, releaseY: 1.75, speed: 1.1, break: 1.35, ctrl: 0.025, endurance: 1.05, pitches: [0,2,4,3], desc: '우완 · 구속 A · 고속슬라이더 S · 제구 S' }
 ];
-
-const TRAIT_TYPES = ['우완', '좌완', '오버핸드', '쓰리쿼터', '사이드암', '언더핸드'];
-const PINCH_NAMES = ['김대타', '이한방', '박승부', '최역전', '정클러치', '강스윙', '조타격', '장홈런'];
 
 let currentPitcherIdx = 0, usedPitcherIds = new Set();
 let pitcherStamina = 100, pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100]));
@@ -497,7 +496,7 @@ function updateStatsUI() {
   const traitStr = currentHitter.str ? ` | 강점:${currentHitter.str} 약점:${currentHitter.wk}` : '';
   const statsStr = `[주력 ${currentHitter.speed} | 파워 ${currentHitter.power} | 컨택 ${currentHitter.contact} | 선구 ${currentHitter.eye}${traitStr}]`;
   
-  if ($('batterSummary')) $('batterSummary').innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번</strong><br><span class="text-emerald-300 text-[10px]">${statsStr}</span><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)} · SLG ${slg.toFixed(3)}`;
+  if ($('batterSummary')) $('batterSummary').innerHTML = `<strong>${ownBatter ? '내 타자' : '상대 타자'} · ${ownBatter ? battingOrderIndex + 1 : opponentBatterIndex + 1}번</strong><br><span class="text-emerald-300 text-[10px]">${statsStr}</span><br>AVG ${avg.toFixed(3)} · OBP ${obp.toFixed(3)}`;
   if ($('pitcherSummaryTop')) $('pitcherSummaryTop').innerHTML = `<strong>${ownBatter ? '상대 선발' : PITCHERS[currentPitcherIdx].name}</strong><br>ERA ${era} · K ${ps.strikeouts} · BB ${ps.walks} · WHIP ${whip}`;
 }
 
@@ -607,7 +606,7 @@ function updateFireworks(dt) {
 }
 
 function triggerHomeRunCelebration() { homeRunCelebrationUntil = simTime + 2600; targetTimeScale = 1.0; bt.visible = true; flash('홈런! 🎆', '장외로 날아갑니다!'); snd(180, 0.38, 'sawtooth', 0.2, 760); [0, 260, 520, 780].forEach(delay => setTimeout(spawnFirework, delay)); }
-function overlay(t, p) { $('ovT').textContent = t; $('ovP').textContent = p; $('ov').hidden = false; }
+function overlay(t, p) { $('ovT').textContent = t; $('ovP').textContent = p; $('ov').style.display = 'flex'; }
 function newRunner(t0, sp) { const q = pool.find(x => !x.on) || pool[0], batterIndex = S.mode === 'bat' ? battingOrderIndex : opponentBatterIndex, rating = S.mode === 'bat' ? (lineup[batterIndex]?.speed || 3) : 3; Object.assign(q, { on: true, b: 0, to: 0, out: false, h: 0, t0, sp: sp * (0.84 + rating * 0.04), speedRating: rating, batterIndex, batterSide: S.mode }); q.g.visible = true; q.g.position.copy(BP[0]); return q; }
 function runnerSpeed(runner, baseSpeed) { return baseSpeed * (0.84 + (runner?.speedRating || 3) * 0.04); }
 function recordRunnerScore(r) { if (!Number.isInteger(r?.batterIndex)) return; const players = r.batterSide === 'bat' ? lineup : opponentLineup; players[r.batterIndex].stats.runs++; }
@@ -833,40 +832,35 @@ function syncBatterAppearance() { const currentHitter = S.mode === 'bat' ? lineu
 function selectCamera(mode) { if (!['plate', 'pitcher', 'batter'].includes(mode)) return; cameraMode = mode; document.querySelectorAll('[data-camera]').forEach(button => button.classList.toggle('on', button.dataset.camera === cameraMode)); board(); }
 function renderVideoReview() { const review = lastPitchReview, box = $('videoReviewText'); if (!review) { box.textContent = '판독할 투구 기록이 없습니다.'; return; } box.textContent = `${review.pitchName} · ${review.speedKmh} km/h\n심판 판정: ${review.called}\nABS 기준: ${review.actual}\n존 위치: X ${review.tx.toFixed(2)} · Y ${review.ty.toFixed(2)}`; }
 
-function openVideoReview() { renderVideoReview(); $('videoReviewPanel').hidden = false; isReviewPaused = true; }
-function closeVideoReview() { $('videoReviewPanel').hidden = true; isReviewPaused = false; }
-function startSlowReplay() { if (replayBuffer.length < 10) return; $('videoReviewPanel').hidden = true; isReplaying = true; replayFrameIndex = Math.max(0, replayBuffer.length - 200); $('replayBadge').style.display = 'block'; flash('비디오 판독', '슬로우 리플레이 재생 중'); }
+function openVideoReview() { renderVideoReview(); $('videoReviewPanel').style.display = 'block'; isReviewPaused = true; }
+function closeVideoReview() { $('videoReviewPanel').style.display = 'none'; isReviewPaused = false; }
+function startSlowReplay() { if (replayBuffer.length < 10) return; $('videoReviewPanel').style.display = 'none'; isReplaying = true; replayFrameIndex = Math.max(0, replayBuffer.length - 200); $('replayBadge').style.display = 'block'; flash('비디오 판독', '슬로우 리플레이 재생 중'); }
 
 $('overrideOutBtn').addEventListener('click', () => { if (lastRace && lastRace.wasSafe) { lastRace.wasSafe = false; occ[lastRace.base] = null; setOcc(occ); addOut(1); lastRace.runner.on = false; lastRace.runner.g.visible = false; flash('판정 번복', '아웃으로 정정되었습니다.'); board(); } else flash('변경 불가', '이미 아웃이거나 최근 주루 기록이 없습니다.'); });
 $('overrideSafeBtn').addEventListener('click', () => { if (lastRace && !lastRace.wasSafe) { if (S.outs > 0) { lastRace.wasSafe = true; S.outs = Math.max(0, S.outs - 1); lastRace.runner.b = lastRace.base; lastRace.runner.to = lastRace.base; lastRace.runner.on = true; lastRace.runner.g.visible = true; lastRace.runner.g.position.copy(BP[lastRace.base]); occ[lastRace.base] = lastRace.runner; setOcc(occ); flash('판정 번복', '세이프로 정정되었습니다.'); board(); } } else flash('변경 불가', '이미 세이프거나 최근 주루 기록이 없습니다.'); });
 
 function openPinchHitterMenu() {
   if (S.mode !== 'bat' || (S.phase !== 'wait' && S.phase !== 'aim')) { flash('대타 불가', '타석 대기 중에만 기용할 수 있습니다.'); return; }
+  const select = $('pinchTargetSelect'); select.innerHTML = '';
+  lineup.forEach((batter, i) => { const opt = document.createElement('option'); opt.value = i; opt.textContent = `${i+1}번 타자: ${batter.name}`; if (i === battingOrderIndex) opt.selected = true; select.appendChild(opt); });
   const list = $('pinchHitterList'); list.innerHTML = '';
-  
   for(let i=0; i<3; i++) {
-    const pName = PINCH_NAMES[Math.floor(Math.random() * PINCH_NAMES.length)];
-    const pStr = TRAIT_TYPES[Math.floor(Math.random() * TRAIT_TYPES.length)];
-    let pWk = TRAIT_TYPES[Math.floor(Math.random() * TRAIT_TYPES.length)];
-    while(pWk === pStr) pWk = TRAIT_TYPES[Math.floor(Math.random() * TRAIT_TYPES.length)];
-    
-    const pSpd = 2 + Math.floor(Math.random() * 4), pPow = 2 + Math.floor(Math.random() * 4), pCon = 2 + Math.floor(Math.random() * 4), pEye = 2 + Math.floor(Math.random() * 4);
-    const pSide = Math.random() < 0.5 ? 'L' : 'R';
-    
+    const pName = PINCH_NAMES[Math.floor(Math.random() * PINCH_NAMES.length)], pStr = TRAIT_TYPES[Math.floor(Math.random() * TRAIT_TYPES.length)];
+    let pWk = TRAIT_TYPES[Math.floor(Math.random() * TRAIT_TYPES.length)]; while(pWk === pStr) pWk = TRAIT_TYPES[Math.floor(Math.random() * TRAIT_TYPES.length)];
+    const pSpd = 2 + Math.floor(Math.random() * 4), pPow = 2 + Math.floor(Math.random() * 4), pCon = 2 + Math.floor(Math.random() * 4), pEye = 2 + Math.floor(Math.random() * 4), pSide = Math.random() < 0.5 ? 'L' : 'R';
     const btn = document.createElement('button'); btn.className = 'w-full text-left p-3 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-white cursor-pointer';
-    btn.innerHTML = `<div class="font-bold text-amber-300 text-lg mb-1">${pName} <span class="text-xs text-slate-300">(${pSide === 'R' ? '우타' : '좌타'})</span></div><div class="text-xs text-slate-300 mb-2">파워 ${pPow} | 컨택 ${pCon} | 주력 ${pSpd} | 선구 ${pEye}</div><div class="text-[11px] text-emerald-300">강점: ${pStr} / 약점: ${pWk}</div>`;
+    btn.innerHTML = `<div class="font-bold text-amber-300 text-base mb-1">${pName} <span class="text-xs text-slate-300">(${pSide === 'R' ? '우타' : '좌타'})</span></div><div class="text-[10px] text-slate-300 mb-1">파워 ${pPow} | 컨택 ${pCon} | 주력 ${pSpd} | 선구 ${pEye}</div><div class="text-[11px] text-emerald-300">강점: ${pStr} / 약점: ${pWk}</div>`;
     btn.onclick = () => {
-      lineup[battingOrderIndex] = { name: pName + ' (대타)', stats: emptyBatterStats(), speed: pSpd, power: pPow, contact: pCon, eye: pEye, side: pSide, str: pStr, wk: pWk };
-      batterStats = lineup[battingOrderIndex].stats;
-      syncBatterAppearance(); updateStatsUI();
-      $('pinchHitterModal').hidden = true; $('timeoutMenu').hidden = true; isTimeOut = false; flash('대타 기용!', `${pName} 선수가 타석에 들어섭니다.`); board();
-    };
-    list.appendChild(btn);
+      const targetIdx = parseInt(select.value);
+      lineup[targetIdx] = { name: pName + ' (대타)', stats: emptyBatterStats(), speed: pSpd, power: pPow, contact: pCon, eye: pEye, side: pSide, str: pStr, wk: pWk };
+      if (targetIdx === battingOrderIndex) { batterStats = lineup[battingOrderIndex].stats; syncBatterAppearance(); }
+      updateStatsUI(); $('pinchHitterModal').style.display = 'none'; $('timeoutMenu').style.display = 'none'; isTimeOut = false; flash('대타 기용!', `${targetIdx+1}번 타자가 교체되었습니다.`); board();
+    }; list.appendChild(btn);
   }
-  $('pinchHitterModal').hidden = false;
+  $('pinchHitterModal').style.display = 'flex';
 }
 $('openPinchHitterBtn').addEventListener('click', openPinchHitterMenu);
-$('closePinchHitterBtn').addEventListener('click', () => { $('pinchHitterModal').hidden = true; });
+$('closePinchHitterBtn').addEventListener('click', () => { $('pinchHitterModal').style.display = 'none'; });
 
 function start(m) {
   gameTimers.forEach(t => clearGameTimeout(t)); gameTimers.length = 0;
@@ -874,9 +868,11 @@ function start(m) {
   teamNames = [$('ownTeamName')?.value?.trim().slice(0, 12) || '우리 팀', $('opponentTeamName')?.value?.trim().slice(0, 12) || '상대 팀'];
   Object.assign(S, { outs: 0, balls: 0, strikes: 0, hits: 0, hr: 0 });
   lineup = Array.from({ length: 9 }, (_, i) => { const entered = $(`lineupName${i}`)?.value?.trim(); return { name: entered || `${i + 1}번 타자`, speed: 1 + Math.floor(Math.random() * 5), power: 1 + Math.floor(Math.random() * 5), contact: 1 + Math.floor(Math.random() * 5), eye: 1 + Math.floor(Math.random() * 5), side: Math.random() < 0.5 ? 'L' : 'R', str: null, wk: null, stats: emptyBatterStats() }; });
-  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false; opponentPitcherStats = emptyPitcherStats(); opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats(), speed: 3, power: 3, contact: 3, eye: 3, str: null, wk: null })); opponentBatterIndex = 0; batterPAMode = null; lastPitchReview = null; $('videoReviewPanel').hidden = true; $('timeoutMenu').hidden = true; $('pinchHitterModal').hidden = true; syncBatterAppearance();
+  battingOrderIndex = 0; batterStats = lineup[0].stats; batterPAComplete = false; opponentPitcherStats = emptyPitcherStats(); opponentLineup = Array.from({ length: 9 }, (_, i) => ({ name: `상대 ${i + 1}번 타자`, side: Math.random() < 0.5 ? 'L' : 'R', stats: emptyBatterStats(), speed: 3, power: 3, contact: 3, eye: 3, str: null, wk: null })); opponentBatterIndex = 0; batterPAMode = null; lastPitchReview = null; 
+  $('videoReviewPanel').style.display = 'none'; $('timeoutMenu').style.display = 'none'; $('pinchHitterModal').style.display = 'none'; $('pitcherModal').style.display = 'none';
+  syncBatterAppearance();
   pitcherStatsById = Object.fromEntries(PITCHERS.map(p => [p.id, emptyPitcherStats()])); pitcherStaminaById = Object.fromEntries(PITCHERS.map(p => [p.id, 100])); usedPitcherIds.clear(); challengeCount = 2; pendingABSCall = null; clearRun(); bt.visible = true; defensiveThrow = null; $('types').hidden = S.mode !== 'pitch'; board(); P = null; hit = null; sw = null; resetField();
-  $('ov').hidden = true; S.phase = 'wait'; flash('플레이 볼!', S.mode === 'bat' ? '초 공격 시작' : '초 수비 시작'); pitcherStamina = 100; refreshPitchButtons(); updateStatsUI(); updatePitcherUI();
+  $('ov').style.display = 'none'; S.phase = 'wait'; flash('플레이 볼!', S.mode === 'bat' ? '초 공격 시작' : '초 수비 시작'); pitcherStamina = 100; refreshPitchButtons(); updateStatsUI(); updatePitcherUI();
   setGameTimeout(() => { if (S.mode === 'pitch') ready(); else { ready(); setGameTimeout(pitch, 1200); } }, 900);
 }
 
@@ -921,7 +917,7 @@ function tick(realNow) {
         if (replayFrameIndex > currentEndFrame) { hrSequence.curIdx++; if (hrSequence.curIdx < hrSequence.angles.length) { replayFrameIndex = hrSequence.startFrame; flash('홈런 리플레이', hrSequence.angles[hrSequence.curIdx].text); } else { isReplaying = false; hrSequence = null; $('replayBadge').style.display = 'none'; continueAfterPlay(S.h); } }
       } else {
         if (snap) { lookT.set(snap.ballPos.x, Math.max(0.5, snap.ballPos.y), snap.ballPos.z); liveCamPos.set(snap.ballPos.x * 0.5, Math.max(2, snap.ballPos.y + 1), snap.ballPos.z + 5); cam.position.lerp(liveCamPos, 0.1); look.lerp(lookT, 0.1); cam.lookAt(look); }
-        replayFrameIndex += 0.4; if (replayFrameIndex >= replayBuffer.length) { isReplaying = false; $('replayBadge').style.display = 'none'; $('videoReviewPanel').hidden = false; }
+        replayFrameIndex += 0.4; if (replayFrameIndex >= replayBuffer.length) { isReplaying = false; $('replayBadge').style.display = 'none'; $('videoReviewPanel').style.display = 'block'; }
       }
     }
     const finalFovReplay = (hrSequence ? hrSequence.angles[hrSequence.curIdx].fov : 54) * camZoom;
@@ -1048,7 +1044,7 @@ function tick(realNow) {
 }
 
 document.querySelectorAll('#throwChoices [data-throw]').forEach(b => b.addEventListener('click', () => { manualThrowMode = b.dataset.throw === 'manual'; document.querySelectorAll('#throwChoices [data-throw]').forEach(btn => btn.classList.toggle('on', btn === b)); }));
-stage.addEventListener('pointerdown', e => { if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, #timeoutMenu, #pinchHitterModal, button, input')) return; e.preventDefault(); if (attemptHighlightCatch()) return; if (S.mode === 'pitch' && S.phase === 'aim') { aimAt(e); act(); } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e); else act(); });
+stage.addEventListener('pointerdown', e => { if (e.target.closest('#ov, #gameHud, #absPanel, #videoReviewPanel, #timingWrap, #timeoutMenu, #pinchHitterModal, button, input, select')) return; e.preventDefault(); if (attemptHighlightCatch()) return; if (S.mode === 'pitch' && S.phase === 'aim') { aimAt(e); act(); } else if (S.mode === 'bat' && pciEnabled && S.phase === 'aim') aimAt(e); else act(); });
 stage.addEventListener('pointermove', e => { if ((S.mode === 'pitch' && S.phase === 'aim') || (S.mode === 'bat' && pciEnabled)) aimAt(e); });
 $('types').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setPT(+b.dataset.i); } });
 $('mobileAct').addEventListener('click', () => act()); $('mobileSteal').addEventListener('click', useSprintAction); $('buntBtn').addEventListener('click', toggleBunt); $('pciBtn').addEventListener('click', togglePCI);
@@ -1062,14 +1058,14 @@ document.querySelectorAll('#difficultyChoices [data-difficulty]').forEach(button
 document.querySelectorAll('#inningChoices [data-innings]').forEach(button => { button.addEventListener('click', () => { maxInnings = Number(button.dataset.innings); document.querySelectorAll('#inningChoices [data-innings]').forEach(b => b.classList.toggle('on', b === button)); drawScoreboard(); }); });
 $('challengeBtn').addEventListener('click', challengeABS);
 
-$('resumeGameBtn').addEventListener('click', () => { $('timeoutMenu').hidden = true; isTimeOut = false; flash('경기 재개', '타임이 해제되었습니다.'); board(); });
+$('resumeGameBtn').addEventListener('click', () => { $('timeoutMenu').style.display = 'none'; isTimeOut = false; flash('경기 재개', '타임이 해제되었습니다.'); board(); });
 
 addEventListener('keydown', e => {
   if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
   if (e.code === 'Escape') { 
     e.preventDefault(); 
     if (!isTimeOut && !isReviewPaused && !isReplaying && S.phase !== 'idle' && S.phase !== 'over') { 
-      isTimeOut = true; $('timeoutMenu').hidden = false;
+      isTimeOut = true; $('timeoutMenu').style.display = 'flex';
       $('openPinchHitterBtn').style.display = (S.mode === 'bat' && (S.phase === 'wait' || S.phase === 'aim')) ? 'block' : 'none';
     } 
   }
