@@ -1707,4 +1707,3 @@ updatePitcherUI(); initABSGrid(); board(); requestAnimationFrame(tick);
 </html>"""
 components.html(GAME_HTML, height=1050, scrolling=True)
 
-```
