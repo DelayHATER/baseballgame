@@ -164,8 +164,8 @@ body {
     <div id="ov">
       <h2 id="ovT" class="font-title text-3xl md:text-5xl text-amber-400 drop-shadow">컴투스아마추어야구2026</h2>
       <p id="ovP" class="text-sm md:text-base text-slate-300 max-w-md text-center leading-relaxed">
-        경기 전에 구장을 고르세요.<br>
-        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다.
+        경기 전에 구장을 고르세요. 돔구장과 야외 구장이 준비되어 있습니다.<br>
+        선택한 이닝 동안 공격과 수비를 번갈아 플레이합니다. 난이도와 이닝도 여기서 고를 수 있습니다.
       </p>
       <div class="flex flex-wrap justify-center gap-2 mt-1" id="stadiumChoices">
         <button class="stadium-choice on" data-stadium="0">🌙 야간 클래식</button>
@@ -353,8 +353,9 @@ scene.background = new THREE.Color(0x07101c);
 scene.fog = new THREE.Fog(0x07101c, 80, 320);
 
 const cam = new THREE.PerspectiveCamera(52, 1, 0.3, 600);
-const camPos = V3(0.7, 2, 5.4);
-const DEF = V3(0, 1.1, -9);
+// 홈플레이트 가까운 정면 시점: 존 크기는 그대로 두고 거리로 더 크게 보이게 합니다.
+const camPos = V3(0, 1.45, 3.2);
+const DEF = V3(0, 0.82, 0.1);
 const look = DEF.clone(), lookT = DEF.clone();
 cam.position.copy(camPos);
 
@@ -563,7 +564,7 @@ const pit = figure(0xffffff, 0x1b2a5c, 0, -18.4); pit.position.y = 0.28; pit.rot
 const arm = new THREE.Group(); arm.position.set(0.24, 2, -18.4); scene.add(arm);
 mk(new THREE.CylinderGeometry(0.05, 0.045, 0.62, 8), mat(0xffffff), 0, -0.31, 0, arm);
 const catcher = figure(0x24385f, 0x1b2a5c, 0, 0.9);
-catcher.scale.set(0.92, 0.72, 0.92); catcher.position.y = 0.08;
+catcher.scale.set(0.92, 0.72, 0.92); catcher.position.set(0.72, 0.08, -0.75);
 const catcherMask = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(0.32, 0.25, 0.12)), new THREE.LineBasicMaterial({ color: 0xd1d5db }));
 catcherMask.position.set(0, 1.45, 0.11); catcher.add(catcherMask);
 mk(new THREE.SphereGeometry(0.13, 10, 8), mat(0xdbeafe), 0.3, 0.96, 0.2, catcher);
@@ -1967,5 +1968,3 @@ requestAnimationFrame(tick);
 </body>
 </html>'''
 components.html(GAME_HTML, height=1050, scrolling=True)
-
-
